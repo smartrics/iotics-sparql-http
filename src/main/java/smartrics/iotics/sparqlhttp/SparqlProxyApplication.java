@@ -1,82 +1,98 @@
 package smartrics.iotics.sparqlhttp;
 
-import java.util.Comparator;
-import java.util.List;
-import java.util.PriorityQueue;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.ToIntFunction;
-import java.util.stream.Collectors;
-
-import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.google.protobuf.ByteString;
 import com.iotics.api.MetaAPIGrpc;
-import com.iotics.api.Scope;
-import com.iotics.api.SparqlQueryRequest;
-import com.iotics.api.SparqlQueryResponse;
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
-import io.grpc.stub.StreamObserver;
-import org.jetbrains.annotations.NotNull;
-import smartrics.iotics.space.Builders;
+import com.iotics.api.SparqlResultType;
 import spark.Request;
 import spark.Response;
-import spark.Route;
+
+import java.util.Optional;
+import java.util.concurrent.Callable;
+import java.util.function.Consumer;
 
 import static spark.Spark.*;
 
 public class SparqlProxyApplication {
 
 
-    private static AtomicReference<MetaAPIGrpc.MetaAPIStub> metaAPIStubRef;
+    public static void main(String[] args) throws Exception {
+        String hostDNS = findHostDNS(args);
+        Callable<MetaAPIGrpc.MetaAPIStub> ioticsAPI = new IOTICSInitialiser(hostDNS);
+        CallHandler callHandler = new CallHandler(ioticsAPI);
 
-    public static MetaAPIGrpc.MetaAPIStub getMetaApi() {
-        return metaAPIStubRef.get();
-    }
-
-    public static void main(String[] args) {
-        metaAPIStubRef = new AtomicReference<>();
-        configureIotics();
-        startHttp();
-    }
-
-    private static void configureIotics() {
-        ManagedChannelBuilder<?> builder = newManagedChannelBuilder();
-        ManagedChannel channel = builder.build();
-        metaAPIStubRef.set(MetaAPIGrpc.newStub(channel));
-    }
-
-    @NotNull
-    private static ManagedChannelBuilder<?> newManagedChannelBuilder() {
-        ManagedChannelBuilder<?> builder = ManagedChannelBuilder.forTarget("demo.iotics.com");
-        builder.executor(Executors.newCachedThreadPool((new ThreadFactoryBuilder()).setNameFormat("iot-grpc-%d").build()));
-        return builder;
-    }
-
-    private static void startHttp() {
         before("/*", SparqlProxyApplication::validateRequest);
         path("/sparql", () -> {
-            get("/", SparqlProxyApplication::sparqlGet);
+//            get("/", SparqlProxyApplication::sparqlGet);
             post("/", SparqlProxyApplication::sparqlPost);
         });
     }
 
-    private static String sparqlPost(Request request, Response response) {
+    private static Object sparqlPost(Request request, Response response) {
         return null;
     }
 
-    private static void validateRequest(Request request, Response response) {
-        // check there's a token
+    public static void validateRequest(Request request, Response response) {
+        String authHeader = request.headers("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            halt(401, ErrorMessage.toJson("Access Denied: no Bearer token provided"));
+        }
+        SimpleToken simpleToken = null;
+        String token = authHeader.substring("Bearer ".length());
+        try {
+            simpleToken = SimpleToken.parse(token);
+            String message = tokenValidMessage(simpleToken);
+            if (message != null) {
+                halt(401, ErrorMessage.toJson("Access Denied: " + message));
+            }
+
+        } catch (IllegalArgumentException e) {
+            halt(401, ErrorMessage.toJson("Access Denied: " + e.getMessage()));
+        }
+
+        String contentType = request.contentType();
+        Optional<SparqlResultType> mappedContentType = ContentTypesMap.get(contentType);
+        mappedContentType.ifPresent(sparqlResultType -> {
+            if(sparqlResultType.equals(SparqlResultType.UNRECOGNIZED)) {
+                halt(400, ErrorMessage.toJson("Unrecognised content type: " + contentType));
+            }
+            request.attribute("sparqlResultType", sparqlResultType);
+            // we'll omit the content type if not specified and use the default
+        });
+
+
+        request.attribute("agentDID", simpleToken.agentDID());
+        request.attribute("agentId", simpleToken.agentId());
+        request.attribute("userDID", simpleToken.userDID());
     }
 
-    private static String sparqlGet(Request request, Response response) {
-        return null;
+    public static String tokenValidMessage(SimpleToken token) {
+
+        try {
+            if (token.isValid()) {
+                return null;
+            }
+            return "invalid token: missing issuer, subject or already expired";
+        } catch (Exception e) {
+            return "invalid token: " + e.getMessage();
+        }
     }
 
-    // this needs to terminate at some point - put it in a timer
+    private static String findHostDNS(String[] args) {
+        String value = System.getenv("hostDNS");
+        if (value != null) {
+            return value;
+        }
 
+        String argKey = "hostDNS=";
+        for (String arg : args) {
+            if (arg.startsWith(argKey)) {
+                return arg.substring(argKey.length());
+            }
+        }
 
+        String sp = System.getProperty(SparqlProxyApplication.class.getPackageName() + ".hostDNS");
+        if (sp != null) {
+            return sp;
+        }
+        throw new IllegalStateException("missing hostDNS");
+    }
 }
