@@ -1,10 +1,7 @@
 package smartrics.iotics.sparqlhttp;
 
 import com.google.protobuf.ByteString;
-import com.iotics.api.MetaAPIGrpc;
-import com.iotics.api.Scope;
-import com.iotics.api.SparqlQueryRequest;
-import com.iotics.api.SparqlQueryResponse;
+import com.iotics.api.*;
 import io.grpc.stub.StreamObserver;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +45,7 @@ class SparqlRunnerTest {
                 .withMetaAPIStub(metaAPIStub)
                 .withAgentId("agentId")
                 .withScope(Scope.LOCAL)
+                .withSparqlResultType(SparqlResultType.SPARQL_CSV)
                 .withOutputStream(outputStream)
                 .withConcurrencyManager(concurrencyManager)
                 .build();

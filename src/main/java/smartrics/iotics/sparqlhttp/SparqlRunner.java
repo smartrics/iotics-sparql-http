@@ -1,10 +1,7 @@
 package smartrics.iotics.sparqlhttp;
 
 import com.google.protobuf.ByteString;
-import com.iotics.api.MetaAPIGrpc;
-import com.iotics.api.Scope;
-import com.iotics.api.SparqlQueryRequest;
-import com.iotics.api.SparqlQueryResponse;
+import com.iotics.api.*;
 import io.grpc.stub.StreamObserver;
 import org.jetbrains.annotations.NotNull;
 import smartrics.iotics.space.Builders;
@@ -20,12 +17,14 @@ public class SparqlRunner implements QueryRunner {
     private final Scope scope;
     private final StreamObserver<String> outputStream;
     private final RunnerConcurrencyManager concurrencyManager;
+    private final SparqlResultType resultContentType;
 
-    private SparqlRunner(MetaAPIGrpc.MetaAPIStub apiStub, String agentId, Scope scope, StreamObserver<String> output, RunnerConcurrencyManager concurrencyManager) {
+    private SparqlRunner(MetaAPIGrpc.MetaAPIStub apiStub, String agentId, Scope scope, SparqlResultType resultContentType, StreamObserver<String> output, RunnerConcurrencyManager concurrencyManager) {
         this.metaAPIStub = apiStub;
         this.agentId = agentId;
         this.scope = scope;
         this.outputStream = output;
+        this.resultContentType = resultContentType;
         this.concurrencyManager = concurrencyManager;
     }
 
@@ -37,6 +36,7 @@ public class SparqlRunner implements QueryRunner {
                 .setScope(scope)
                 .setPayload(SparqlQueryRequest.Payload.newBuilder()
                         .setQuery(ByteString.copyFromUtf8(query))
+                        .setResultContentType(resultContentType)
                         .build())
                 .build(), newResponseObserver(outputStream));
     }
@@ -99,7 +99,7 @@ public class SparqlRunner implements QueryRunner {
     public static final class SparqlRunnerBuilder {
         private MetaAPIGrpc.MetaAPIStub metaAPIStub;
         private String agentId;
-        private String query;
+        private SparqlResultType resultContentType;
         private Scope scope;
         private StreamObserver<String> outputStream;
         private RunnerConcurrencyManager concurrencyManager;
@@ -121,6 +121,11 @@ public class SparqlRunner implements QueryRunner {
             return this;
         }
 
+        public SparqlRunnerBuilder withSparqlResultType(SparqlResultType resultContentType) {
+            this.resultContentType = resultContentType;
+            return this;
+        }
+
         public SparqlRunnerBuilder withScope(Scope scope) {
             this.scope = scope;
             return this;
@@ -137,7 +142,7 @@ public class SparqlRunner implements QueryRunner {
         }
 
         public SparqlRunner build() {
-            return new SparqlRunner(metaAPIStub, agentId, scope, outputStream, concurrencyManager);
+            return new SparqlRunner(metaAPIStub, agentId, scope, resultContentType, outputStream, concurrencyManager);
         }
     }
 }
