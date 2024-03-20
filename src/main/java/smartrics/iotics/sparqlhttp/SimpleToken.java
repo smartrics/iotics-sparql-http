@@ -1,5 +1,8 @@
 package smartrics.iotics.sparqlhttp;
 
+import com.google.gson.Gson;
+import smartrics.iotics.identity.experimental.JWT;
+
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -7,6 +10,14 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 public record SimpleToken(Payload payload) {
+
+    public static SimpleToken parse(String token) {
+        JWT jwt = new JWT(token);
+        Gson gson = new Gson();
+        String string = jwt.toNiceString();
+        return gson.fromJson(string, SimpleToken.class);
+    }
+
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MMM-dd HH:mm:ss", Locale.ENGLISH);
 
     public String userDID() {
