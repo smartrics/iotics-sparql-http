@@ -49,10 +49,10 @@ class SparqlProxyApplicationTest {
 
     @ParameterizedTest
     @CsvSource({
-            "text/unknown, Unsupported mime type",
-            "application/rdf+xml, Invalid mime type"
+            "text/unknown, Unsupported response mime type",
+            "application/sparql-results+json, Invalid response mime type"
     })
-    void testInvalidContentType(String acceptValue, String err) {
+    void testInvalidAcceptedResponseTypes(String acceptValue, String err) {
         Request mockRequest = mock(Request.class);
         Response mockResponse = mock(Response.class);
 
@@ -67,6 +67,20 @@ class SparqlProxyApplicationTest {
         assertThat(messageFromJson(thrown.body()), containsString(err));
 
     }
+
+    @Test
+    void testValidAcceptedResponseTypes() {
+        Request mockRequest = mock(Request.class);
+        Response mockResponse = mock(Response.class);
+
+        when(mockRequest.headers("Authorization")).thenReturn("Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJodHRwczovL2RpZC5zdGcuaW90aWNzLmNvbSIsImV4cCI6MjAyNjMzNzc2NCwiaWF0IjoxNzEwOTc3NzM0LCJpc3MiOiJkaWQ6aW90aWNzOmlvdFlzcWpnUUV5emRBZm8zQU5OV1YyeHh6VURGdVR2eWRDViNhZ2VudDEiLCJzdWIiOiJkaWQ6aW90aWNzOmlvdExVbXdIREZ0cGZMRVdUZUdBUXd5cDRZNUZvU1R0NGpiZyJ9.CnZHkMoKnmr7z2xAHMiHfQiqfrzLmNpsk1Mt_CAH3h98o_mhH1HkB-8E5ieTIXP2jmzmE0U0mCcBNmWMSMaRtQ");
+        when(mockRequest.headers("Accept")).thenReturn("*/*");
+
+        SparqlProxyApplication.validateRequest(mockRequest, mockResponse);
+
+        verify(mockRequest).attribute("acceptedResponseType", SparqlResultType.RDF_TURTLE);
+    }
+
 
     @ParameterizedTest
     @ValueSource(strings ={"default-graph-uri", "named-graph-uri"})
@@ -92,13 +106,13 @@ class SparqlProxyApplicationTest {
         Response mockResponse = mock(Response.class);
 
         when(mockRequest.headers("Authorization")).thenReturn("Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJodHRwczovL2RpZC5zdGcuaW90aWNzLmNvbSIsImV4cCI6MjAyNjMzNzc2NCwiaWF0IjoxNzEwOTc3NzM0LCJpc3MiOiJkaWQ6aW90aWNzOmlvdFlzcWpnUUV5emRBZm8zQU5OV1YyeHh6VURGdVR2eWRDViNhZ2VudDEiLCJzdWIiOiJkaWQ6aW90aWNzOmlvdExVbXdIREZ0cGZMRVdUZUdBUXd5cDRZNUZvU1R0NGpiZyJ9.CnZHkMoKnmr7z2xAHMiHfQiqfrzLmNpsk1Mt_CAH3h98o_mhH1HkB-8E5ieTIXP2jmzmE0U0mCcBNmWMSMaRtQ");
-        when(mockRequest.headers("Accept")).thenReturn("text/csv");
+        when(mockRequest.headers("Accept")).thenReturn("application/n-triples");
         SparqlProxyApplication.validateRequest(mockRequest, mockResponse);
 
         verify(mockRequest).attribute("userDID", "did:iotics:iotLUmwHDFtpfLEWTeGAQwyp4Y5FoSTt4jbg");
         verify(mockRequest).attribute("agentDID", "did:iotics:iotYsqjgQEyzdAfo3ANNWV2xxzUDFuTvydCV");
         verify(mockRequest).attribute("agentId", "agent1");
-        verify(mockRequest).attribute("sparqlResultType", SparqlResultType.SPARQL_CSV);
+        verify(mockRequest).attribute("acceptedResponseType", SparqlResultType.RDF_NTRIPLES);
 
     }
 

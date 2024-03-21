@@ -11,6 +11,7 @@ import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 
+import static smartrics.iotics.sparqlhttp.ContentTypesMap.isRDFResultType;
 import static smartrics.iotics.sparqlhttp.ContentTypesMap.isSPARQLResultType;
 import static spark.Spark.*;
 
@@ -54,14 +55,17 @@ public class SparqlProxyApplication {
 
         // TODO: support multiple Accept with quality flag
         String accepted = request.headers("Accept");
-        SparqlResultType mappedAccepted = ContentTypesMap.get(accepted, SparqlResultType.SPARQL_JSON);
-
-        if(mappedAccepted.equals(SparqlResultType.UNRECOGNIZED)) {
-            halt(400, ErrorMessage.toJson("Unsupported mime type: " + accepted));
+        SparqlResultType mappedAccepted = SparqlResultType.RDF_TURTLE;
+        if(accepted != null && !accepted.equals("*/*")) {
+            mappedAccepted = ContentTypesMap.get(accepted, SparqlResultType.UNRECOGNIZED);
         }
 
-        if(!isSPARQLResultType(mappedAccepted)) {
-            halt(400, ErrorMessage.toJson("Invalid mime type: " + accepted));
+        if(mappedAccepted.equals(SparqlResultType.UNRECOGNIZED)) {
+            halt(400, ErrorMessage.toJson("Unsupported response mime type: " + accepted));
+        }
+
+        if(!isRDFResultType(mappedAccepted)) {
+            halt(400, ErrorMessage.toJson("Invalid response mime type: " + accepted));
         }
 
         // SPARQL-1.1 Par 2.1.4
@@ -71,7 +75,7 @@ public class SparqlProxyApplication {
             halt(400, ErrorMessage.toJson("RDF datasets not allowed"));
         }
 
-        request.attribute("sparqlResultType", mappedAccepted);
+        request.attribute("acceptedResponseType", mappedAccepted);
         request.attribute("agentDID", simpleToken.agentDID());
         request.attribute("agentId", simpleToken.agentId());
         request.attribute("userDID", simpleToken.userDID());

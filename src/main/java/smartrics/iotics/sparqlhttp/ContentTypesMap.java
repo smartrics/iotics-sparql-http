@@ -15,6 +15,7 @@ public class ContentTypesMap {
     private static final Map<String, SparqlResultType> resultFormat = new ConcurrentHashMap<>(8);
 
     private static final List<SparqlResultType> SPARQL_RESULT_TYPES = Arrays.asList(SPARQL_XML, SPARQL_JSON, SPARQL_CSV);
+    private static final List<SparqlResultType> RDF_RESULT_TYPES = Arrays.asList(RDF_XML, RDF_TURTLE, RDF_NTRIPLES);
 
     static {
         resultFormat.put("application/sparql-results+xml", SPARQL_XML);
@@ -35,6 +36,10 @@ public class ContentTypesMap {
 
     public static boolean isSPARQLResultType(SparqlResultType in) {
         return SPARQL_RESULT_TYPES.contains(in);
+    }
+
+    public static boolean isRDFResultType(SparqlResultType in) {
+        return RDF_RESULT_TYPES.contains(in);
     }
 
     public static SparqlResultType get(String v, SparqlResultType def) {
