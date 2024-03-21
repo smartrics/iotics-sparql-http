@@ -2,8 +2,10 @@ package smartrics.iotics.sparqlhttp;
 
 import com.iotics.api.MetaAPIGrpc;
 import com.iotics.api.SparqlResultType;
+import spark.Filter;
 import spark.Request;
 import spark.Response;
+import spark.RouteGroup;
 
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -22,12 +24,13 @@ public class SparqlProxyApplication {
 
         before("/*", SparqlProxyApplication::validateRequest);
         path("/sparql", () -> {
-//            get("/", SparqlProxyApplication::sparqlGet);
-            post("/", SparqlProxyApplication::sparqlPost);
+            get("/", SparqlProxyApplication::sparqlGet);
+//            post("/", SparqlProxyApplication::sparqlPost);
         });
     }
 
-    private static Object sparqlPost(Request request, Response response) {
+    private static String sparqlGet(Request request, Response response) {
+        String query = request.queryParams("query");
         return null;
     }
 
@@ -59,6 +62,13 @@ public class SparqlProxyApplication {
 
         if(!isSPARQLResultType(mappedAccepted)) {
             halt(400, ErrorMessage.toJson("Invalid mime type: " + accepted));
+        }
+
+        // SPARQL-1.1 Par 2.1.4
+        String def = request.queryParams("default-graph-uri");
+        String query = request.queryParams("named-graph-uri");
+        if(def!=null  || query !=null) {
+            halt(400, ErrorMessage.toJson("RDF datasets not allowed"));
         }
 
         request.attribute("sparqlResultType", mappedAccepted);

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import spark.HaltException;
 import spark.Request;
 import spark.Response;
@@ -64,6 +65,24 @@ class SparqlProxyApplicationTest {
 
         assertThat(thrown.statusCode(), equalTo(400));
         assertThat(messageFromJson(thrown.body()), containsString(err));
+
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings ={"default-graph-uri", "named-graph-uri"})
+    void testInvalidQueryParams(String value) {
+        Request mockRequest = mock(Request.class);
+        Response mockResponse = mock(Response.class);
+
+        when(mockRequest.headers("Authorization")).thenReturn("Bearer eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJodHRwczovL2RpZC5zdGcuaW90aWNzLmNvbSIsImV4cCI6MjAyNjMzNzc2NCwiaWF0IjoxNzEwOTc3NzM0LCJpc3MiOiJkaWQ6aW90aWNzOmlvdFlzcWpnUUV5emRBZm8zQU5OV1YyeHh6VURGdVR2eWRDViNhZ2VudDEiLCJzdWIiOiJkaWQ6aW90aWNzOmlvdExVbXdIREZ0cGZMRVdUZUdBUXd5cDRZNUZvU1R0NGpiZyJ9.CnZHkMoKnmr7z2xAHMiHfQiqfrzLmNpsk1Mt_CAH3h98o_mhH1HkB-8E5ieTIXP2jmzmE0U0mCcBNmWMSMaRtQ");
+        when(mockRequest.queryParams(value)).thenReturn("something");
+
+        HaltException thrown = assertThrows(HaltException.class, () -> {
+            SparqlProxyApplication.validateRequest(mockRequest, mockResponse);
+        });
+
+        assertThat(thrown.statusCode(), equalTo(400));
+        assertThat(messageFromJson(thrown.body()), containsString("RDF datasets not allowed"));
 
     }
 
