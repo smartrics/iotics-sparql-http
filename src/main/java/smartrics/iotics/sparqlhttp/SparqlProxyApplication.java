@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 
+import static smartrics.iotics.sparqlhttp.ContentTypesMap.isSPARQLResultType;
 import static spark.Spark.*;
 
 public class SparqlProxyApplication {
@@ -48,17 +49,19 @@ public class SparqlProxyApplication {
             halt(401, ErrorMessage.toJson("Access Denied: " + e.getMessage()));
         }
 
-        String contentType = request.contentType();
-        Optional<SparqlResultType> mappedContentType = ContentTypesMap.get(contentType);
-        mappedContentType.ifPresent(sparqlResultType -> {
-            if(sparqlResultType.equals(SparqlResultType.UNRECOGNIZED)) {
-                halt(400, ErrorMessage.toJson("Unrecognised content type: " + contentType));
-            }
-            request.attribute("sparqlResultType", sparqlResultType);
-            // we'll omit the content type if not specified and use the default
-        });
+        // TODO: support multiple Accept with quality flag
+        String accepted = request.headers("Accept");
+        SparqlResultType mappedAccepted = ContentTypesMap.get(accepted, SparqlResultType.SPARQL_JSON);
 
+        if(mappedAccepted.equals(SparqlResultType.UNRECOGNIZED)) {
+            halt(400, ErrorMessage.toJson("Unsupported mime type: " + accepted));
+        }
 
+        if(!isSPARQLResultType(mappedAccepted)) {
+            halt(400, ErrorMessage.toJson("Invalid mime type: " + accepted));
+        }
+
+        request.attribute("sparqlResultType", mappedAccepted);
         request.attribute("agentDID", simpleToken.agentDID());
         request.attribute("agentId", simpleToken.agentId());
         request.attribute("userDID", simpleToken.userDID());
