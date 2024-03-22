@@ -1,38 +1,83 @@
 package smartrics.iotics.sparqlhttp;
 
 import com.iotics.api.MetaAPIGrpc;
+import com.iotics.api.Scope;
 import com.iotics.api.SparqlResultType;
-import spark.Filter;
+import org.jetbrains.annotations.NotNull;
 import spark.Request;
 import spark.Response;
-import spark.RouteGroup;
+import spark.Route;
 
-import java.util.Optional;
 import java.util.concurrent.Callable;
-import java.util.function.Consumer;
+import java.util.concurrent.CountDownLatch;
 
 import static smartrics.iotics.sparqlhttp.ContentTypesMap.isRDFResultType;
-import static smartrics.iotics.sparqlhttp.ContentTypesMap.isSPARQLResultType;
+import static smartrics.iotics.sparqlhttp.ContentTypesMap.mimeFor;
 import static spark.Spark.*;
 
 public class SparqlProxyApplication {
 
-
     public static void main(String[] args) throws Exception {
         String hostDNS = findHostDNS(args);
-        Callable<MetaAPIGrpc.MetaAPIStub> ioticsAPI = new IOTICSInitialiser(hostDNS);
-        CallHandler callHandler = new CallHandler(ioticsAPI);
+        initRoutes(hostDNS);
+    }
+
+    public static void initRoutes(String hostDNS) {
+        String port = System.getenv("PORT");
+        if (port != null) {
+            port(Integer.parseInt(port));
+        }
+        IOTICSConnection ioticsConnection = new IOTICSConnection(hostDNS);
 
         before("/*", SparqlProxyApplication::validateRequest);
+        path("/sparql/local", () -> {
+            get("/", getHandler(Scope.LOCAL, ioticsConnection));
+//            post("/", SparqlProxyApplication::sparqlLocalPost);
+        });
         path("/sparql", () -> {
-            get("/", SparqlProxyApplication::sparqlGet);
+            get("/", getHandler(Scope.GLOBAL, ioticsConnection));
 //            post("/", SparqlProxyApplication::sparqlPost);
         });
     }
 
-    private static String sparqlGet(Request request, Response response) {
-        String query = request.queryParams("query");
-        return null;
+    @NotNull
+    private static Route getHandler(Scope scope, IOTICSConnection connection) {
+        return (request, response) -> {
+            try {
+                String query = request.queryParams("query");
+                String token = request.attribute("token");
+                MetaAPIGrpc.MetaAPIStub api = connection.newMetaAPIStub(token);
+                return runQuery(scope, request, response, api, query);
+            } catch (Exception e) {
+                String message = e.getMessage();
+                if(e.getCause() != null) {
+                    message = message + ": " + e.getCause().getMessage();
+                }
+                halt(500, ErrorMessage.toJson(message));
+
+            }
+            return null;
+        };
+    }
+
+    private static String runQuery(Scope scope, Request request, Response response, MetaAPIGrpc.MetaAPIStub api, String query) {
+        SparqlResultType type = request.attribute("acceptedResponseType");
+        String mime = mimeFor(type);
+        if (mime != null) {
+            response.type(mime);
+        }
+
+        SyncStreamObserverToStringAdapter outputStream = new SyncStreamObserverToStringAdapter();
+        String agentDID = request.attribute("agentDID");
+        QueryRunner runner = SparqlRunner.SparqlRunnerBuilder.newBuilder()
+                .withScope(scope)
+                .withSparqlResultType(type)
+                .withMetaAPIStub(api)
+                .withOutputStream(outputStream)
+                .withAgentId(agentDID)
+                .build();
+        runner.run(query);
+        return outputStream.getString();
     }
 
     public static void validateRequest(Request request, Response response) {
@@ -56,25 +101,31 @@ public class SparqlProxyApplication {
         // TODO: support multiple Accept with quality flag
         String accepted = request.headers("Accept");
         SparqlResultType mappedAccepted = SparqlResultType.RDF_TURTLE;
-        if(accepted != null && !accepted.equals("*/*")) {
+        if (accepted != null && !accepted.equals("*/*")) {
             mappedAccepted = ContentTypesMap.get(accepted, SparqlResultType.UNRECOGNIZED);
         }
 
-        if(mappedAccepted.equals(SparqlResultType.UNRECOGNIZED)) {
+        if (mappedAccepted.equals(SparqlResultType.UNRECOGNIZED)) {
             halt(400, ErrorMessage.toJson("Unsupported response mime type: " + accepted));
         }
 
-        if(!isRDFResultType(mappedAccepted)) {
+        if (!isRDFResultType(mappedAccepted)) {
             halt(400, ErrorMessage.toJson("Invalid response mime type: " + accepted));
         }
 
         // SPARQL-1.1 Par 2.1.4
         String def = request.queryParams("default-graph-uri");
-        String query = request.queryParams("named-graph-uri");
-        if(def!=null  || query !=null) {
+        String named = request.queryParams("named-graph-uri");
+        if (def != null || named != null) {
             halt(400, ErrorMessage.toJson("RDF datasets not allowed"));
         }
 
+        String query = request.queryParams("query");
+        if (query == null && "get".equalsIgnoreCase(request.requestMethod())) {
+            halt(400, ErrorMessage.toJson("missing query"));
+        }
+
+        request.attribute("token", token);
         request.attribute("acceptedResponseType", mappedAccepted);
         request.attribute("agentDID", simpleToken.agentDID());
         request.attribute("agentId", simpleToken.agentId());

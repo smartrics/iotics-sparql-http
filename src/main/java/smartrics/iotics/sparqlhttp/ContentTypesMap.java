@@ -34,6 +34,12 @@ public class ContentTypesMap {
 
     }
 
+    public static String mimeFor(SparqlResultType e) {
+        Optional<String> res = resultFormat.entrySet().stream()
+                .filter(entry -> entry.getValue().equals(e)).map(Map.Entry::getKey).findFirst();
+        return res.orElse(null);
+    }
+
     public static boolean isSPARQLResultType(SparqlResultType in) {
         return SPARQL_RESULT_TYPES.contains(in);
     }
@@ -47,7 +53,7 @@ public class ContentTypesMap {
     }
 
     public static Optional<SparqlResultType> get(String v) {
-        if(v == null) {
+        if (v == null) {
             return Optional.empty();
         }
         return Optional.of(resultFormat.getOrDefault(v, SparqlResultType.UNRECOGNIZED));

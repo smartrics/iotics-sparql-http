@@ -27,9 +27,6 @@ class SparqlRunnerTest {
     @Mock
     private StreamObserver<String> outputStream;
 
-    @Mock
-    private RunnerConcurrencyManager concurrencyManager;
-
     @InjectMocks
     private SparqlRunner sparqlRunner;
 
@@ -47,16 +44,7 @@ class SparqlRunnerTest {
                 .withScope(Scope.LOCAL)
                 .withSparqlResultType(SparqlResultType.SPARQL_CSV)
                 .withOutputStream(outputStream)
-                .withConcurrencyManager(concurrencyManager)
                 .build();
-    }
-
-    @Test
-    public void successfullyHandlesTimerManager() {
-        sendPayloads(0);
-
-        verify(concurrencyManager).resetTimeout();
-        verify(concurrencyManager).shutdownNow();
     }
 
     @Test

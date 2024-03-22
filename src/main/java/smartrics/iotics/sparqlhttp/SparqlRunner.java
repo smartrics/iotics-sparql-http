@@ -16,21 +16,19 @@ public class SparqlRunner implements QueryRunner {
     private final String agentId;
     private final Scope scope;
     private final StreamObserver<String> outputStream;
-    private final RunnerConcurrencyManager concurrencyManager;
     private final SparqlResultType resultContentType;
 
-    private SparqlRunner(MetaAPIGrpc.MetaAPIStub apiStub, String agentId, Scope scope, SparqlResultType resultContentType, StreamObserver<String> output, RunnerConcurrencyManager concurrencyManager) {
+    private SparqlRunner(MetaAPIGrpc.MetaAPIStub apiStub, String agentId, Scope scope, SparqlResultType resultContentType, StreamObserver<String> output) {
         this.metaAPIStub = apiStub;
         this.agentId = agentId;
         this.scope = scope;
         this.outputStream = output;
         this.resultContentType = resultContentType;
-        this.concurrencyManager = concurrencyManager;
     }
 
 
     public void run(String query) {
-        this.concurrencyManager.resetTimeout();
+        StreamObserver<SparqlQueryResponse> responseObserver = newResponseObserver();
         metaAPIStub.sparqlQuery(SparqlQueryRequest.newBuilder()
                 .setHeaders(Builders.newHeadersBuilder(agentId))
                 .setScope(scope)
@@ -38,11 +36,11 @@ public class SparqlRunner implements QueryRunner {
                         .setQuery(ByteString.copyFromUtf8(query))
                         .setResultContentType(resultContentType)
                         .build())
-                .build(), newResponseObserver(outputStream));
+                .build(), responseObserver);
     }
 
     @NotNull
-    private StreamObserver<SparqlQueryResponse> newResponseObserver(StreamObserver<String> delegateStream) {
+    private StreamObserver<SparqlQueryResponse> newResponseObserver() {
         PriorityBlockingQueue<SparqlQueryResponse.Payload> queue =
                 new PriorityBlockingQueue<>(16, Comparator.comparingLong(SparqlQueryResponse.Payload::getSeqNum));
         AtomicInteger expectedSeqNum = new AtomicInteger(0);
@@ -62,10 +60,10 @@ public class SparqlRunner implements QueryRunner {
                         head = queue.peek(); // Check the head without removing
                         if (head != null && head.getSeqNum() == expectedSeqNum.get()) {
                             queue.take(); // Safe to remove
-                            delegateStream.onNext(head.getResultChunk().toStringUtf8());
+                            System.out.println(">> " + head);
+                            outputStream.onNext(head.getResultChunk().toStringUtf8());
                             expectedSeqNum.incrementAndGet();
                             if (head.getLast()) {
-                                SparqlRunner.this.concurrencyManager.shutdownNow();
                                 break;
                             }
                         } else {
@@ -76,7 +74,7 @@ public class SparqlRunner implements QueryRunner {
                             // Restore the interrupted status
                             Thread.currentThread().interrupt();
                         }
-                        delegateStream.onError(e);
+                        outputStream.onError(e);
                         // TODO: should I call onCompleted? or will the gRPC call the #onCompleted api?
                         //delegateStream.onCompleted();
                         break;
@@ -86,12 +84,13 @@ public class SparqlRunner implements QueryRunner {
 
             @Override
             public void onError(Throwable throwable) {
-                delegateStream.onError(throwable);
+                outputStream.onError(throwable);
             }
 
             @Override
             public void onCompleted() {
-                delegateStream.onCompleted();
+                System.out.println("onCompleted();");
+                outputStream.onCompleted();
             }
         };
     }
@@ -102,7 +101,6 @@ public class SparqlRunner implements QueryRunner {
         private SparqlResultType resultContentType;
         private Scope scope;
         private StreamObserver<String> outputStream;
-        private RunnerConcurrencyManager concurrencyManager;
 
         private SparqlRunnerBuilder() {
         }
@@ -136,13 +134,8 @@ public class SparqlRunner implements QueryRunner {
             return this;
         }
 
-        public SparqlRunnerBuilder withConcurrencyManager(RunnerConcurrencyManager concurrencyManager) {
-            this.concurrencyManager = concurrencyManager;
-            return this;
-        }
-
         public SparqlRunner build() {
-            return new SparqlRunner(metaAPIStub, agentId, scope, resultContentType, outputStream, concurrencyManager);
+            return new SparqlRunner(metaAPIStub, agentId, scope, resultContentType, outputStream);
         }
     }
 }
