@@ -2,12 +2,15 @@ package smartrics.iotics.sparqlhttp;
 
 import com.google.protobuf.ByteString;
 import com.iotics.api.*;
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import org.jetbrains.annotations.NotNull;
 import smartrics.iotics.space.Builders;
 
+import javax.net.ssl.SSLEngineResult;
 import java.util.Comparator;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class SparqlRunner implements QueryRunner {
@@ -29,11 +32,12 @@ public class SparqlRunner implements QueryRunner {
 
     public void run(String query) {
         StreamObserver<SparqlQueryResponse> responseObserver = newResponseObserver();
+        ByteString value = ByteString.copyFromUtf8(query);
         metaAPIStub.sparqlQuery(SparqlQueryRequest.newBuilder()
                 .setHeaders(Builders.newHeadersBuilder(agentId))
                 .setScope(scope)
                 .setPayload(SparqlQueryRequest.Payload.newBuilder()
-                        .setQuery(ByteString.copyFromUtf8(query))
+                        .setQuery(value)
                         .setResultContentType(resultContentType)
                         .build())
                 .build(), responseObserver);
@@ -44,6 +48,7 @@ public class SparqlRunner implements QueryRunner {
         PriorityBlockingQueue<SparqlQueryResponse.Payload> queue =
                 new PriorityBlockingQueue<>(16, Comparator.comparingLong(SparqlQueryResponse.Payload::getSeqNum));
         AtomicInteger expectedSeqNum = new AtomicInteger(0);
+        AtomicBoolean onCompletedCalled = new AtomicBoolean(false);
         return new StreamObserver<>() {
             public void onNext(SparqlQueryResponse sparqlQueryResponse) {
                 SparqlQueryResponse.Payload payload = sparqlQueryResponse.getPayload();
@@ -60,10 +65,16 @@ public class SparqlRunner implements QueryRunner {
                         head = queue.peek(); // Check the head without removing
                         if (head != null && head.getSeqNum() == expectedSeqNum.get()) {
                             queue.take(); // Safe to remove
-                            System.out.println(">> " + head);
-                            outputStream.onNext(head.getResultChunk().toStringUtf8());
-                            expectedSeqNum.incrementAndGet();
+                            if(head.getStatus().getCode() == Status.Code.OK.value()) {
+                                String chunk = head.getResultChunk().toStringUtf8();
+                                outputStream.onNext(chunk);
+                                expectedSeqNum.incrementAndGet();
+                            } else {
+                                onError(new RuntimeException(head.getStatus().getMessage()));
+                                break;
+                            }
                             if (head.getLast()) {
+                                callOnCompletedOnce();
                                 break;
                             }
                         } else {
@@ -82,6 +93,13 @@ public class SparqlRunner implements QueryRunner {
                 }
             }
 
+            private void callOnCompletedOnce() {
+                boolean canCall = onCompletedCalled.compareAndSet(false, true);
+                if(canCall) {
+                    outputStream.onCompleted();
+                }
+            }
+
             @Override
             public void onError(Throwable throwable) {
                 outputStream.onError(throwable);
@@ -89,8 +107,7 @@ public class SparqlRunner implements QueryRunner {
 
             @Override
             public void onCompleted() {
-                System.out.println("onCompleted();");
-                outputStream.onCompleted();
+                callOnCompletedOnce();
             }
         };
     }

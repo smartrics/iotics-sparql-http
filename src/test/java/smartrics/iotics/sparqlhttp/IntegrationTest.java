@@ -1,5 +1,6 @@
 package smartrics.iotics.sparqlhttp;
 
+import com.google.gson.Gson;
 import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import org.junit.jupiter.api.AfterAll;
@@ -7,12 +8,17 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
 import java.time.Duration;
-import java.util.concurrent.CountDownLatch;
+import java.util.List;
+import java.util.Map;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInRelativeOrder;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.hamcrest.Matchers.contains;
 
 public class IntegrationTest {
     private static IdentityData identityAPI;
@@ -35,19 +41,23 @@ public class IntegrationTest {
 
     @BeforeEach
     public void setup() {
-        this.token = identityAPI.token(Duration.ofSeconds(5));
+        this.token = identityAPI.token(Duration.ofSeconds(60));
     }
 
     @Test
-    public void testSimpleLocalSPARQL() throws UnsupportedEncodingException, InterruptedException {
-        String sparqlQuery = "SELECT ?subject ?predicate ?object WHERE {?subject ?predicate ?object} LIMIT 10";
-
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public void testSimpleLocalSPARQL() {
+        String sparqlQuery = """
+            SELECT ?subject ?predicate ?object
+            WHERE {?subject ?predicate ?object}
+            LIMIT 10
+            """;
         String encodedQuery = URLEncoder.encode(sparqlQuery, StandardCharsets.UTF_8);
 
         Response response = RestAssured
                 .given()
                     .header("Authorization", "Bearer " + token)
-                    .header("Accept", "text/turtle")
+                    .header("Accept", "application/sparql-results+json")
                     .queryParam("query", encodedQuery)
                 .when()
                     .get("/local/")
@@ -56,11 +66,15 @@ public class IntegrationTest {
                     .response();
 
         String responseBody = response.getBody().asString();
-        System.out.println("Response Body: " + responseBody);
+        Gson g = new Gson();
+        Map map = g.fromJson(responseBody, Map.class);
+        Map head = (Map)map.get("head");
+        List<String> vars = (List<String>)head.get("vars");
+        assertThat(vars, containsInRelativeOrder("subject", "predicate", "object"));
 
         // Get the status of the response
         int statusCode = response.getStatusCode();
-        System.out.println("Status Code: " + statusCode);
+        assertEquals(200,statusCode, "mismatching result, should have been OK");
 
     }
 

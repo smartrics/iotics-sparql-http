@@ -8,11 +8,10 @@ import spark.Request;
 import spark.Response;
 import spark.Route;
 
-import java.util.concurrent.Callable;
-import java.util.concurrent.CountDownLatch;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 
-import static smartrics.iotics.sparqlhttp.ContentTypesMap.isRDFResultType;
-import static smartrics.iotics.sparqlhttp.ContentTypesMap.mimeFor;
+import static smartrics.iotics.sparqlhttp.ContentTypesMap.*;
 import static spark.Spark.*;
 
 public class SparqlProxyApplication {
@@ -44,13 +43,14 @@ public class SparqlProxyApplication {
     private static Route getHandler(Scope scope, IOTICSConnection connection) {
         return (request, response) -> {
             try {
-                String query = request.queryParams("query");
+                String encodedQuery = request.queryParams("query");
+                String query = URLDecoder.decode(encodedQuery, StandardCharsets.UTF_8);
                 String token = request.attribute("token");
                 MetaAPIGrpc.MetaAPIStub api = connection.newMetaAPIStub(token);
                 return runQuery(scope, request, response, api, query);
             } catch (Exception e) {
                 String message = e.getMessage();
-                if(e.getCause() != null) {
+                if (e.getCause() != null) {
                     message = message + ": " + e.getCause().getMessage();
                 }
                 halt(500, ErrorMessage.toJson(message));
@@ -100,7 +100,7 @@ public class SparqlProxyApplication {
 
         // TODO: support multiple Accept with quality flag
         String accepted = request.headers("Accept");
-        SparqlResultType mappedAccepted = SparqlResultType.RDF_TURTLE;
+        SparqlResultType mappedAccepted = SparqlResultType.SPARQL_JSON;
         if (accepted != null && !accepted.equals("*/*")) {
             mappedAccepted = ContentTypesMap.get(accepted, SparqlResultType.UNRECOGNIZED);
         }
@@ -109,7 +109,7 @@ public class SparqlProxyApplication {
             halt(400, ErrorMessage.toJson("Unsupported response mime type: " + accepted));
         }
 
-        if (!isRDFResultType(mappedAccepted)) {
+        if (!isSPARQLResultType(mappedAccepted)) {
             halt(400, ErrorMessage.toJson("Invalid response mime type: " + accepted));
         }
 

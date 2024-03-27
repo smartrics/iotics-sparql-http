@@ -1,7 +1,6 @@
 package smartrics.iotics.sparqlhttp;
 
 import io.grpc.stub.StreamObserver;
-import org.checkerframework.checker.units.qual.A;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -21,14 +20,12 @@ public class SyncStreamObserverToStringAdapter implements StreamObserver<String>
 
     public String getString() {
         try {
-            System.out.println("awaiting " + latch);
             latch.await();
-            System.out.println("not awaiting " + latch);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("unable to terminate query");
         }
-        if(err.get()!=null) {
+        if (err.get() != null) {
             throw new IllegalStateException("error executing the query", err.get());
         }
         return b.toString();
@@ -36,15 +33,13 @@ public class SyncStreamObserverToStringAdapter implements StreamObserver<String>
 
     @Override
     public void onError(Throwable throwable) {
+        System.out.println("on error count latch");
         err.set(throwable);
-        System.out.println("counting down - on error " + latch);
         latch.countDown();
-        System.out.println("counting down - on error " + latch);
     }
 
     @Override
     public void onCompleted() {
-        System.out.println("counting down - on complete");
         latch.countDown();
     }
 }

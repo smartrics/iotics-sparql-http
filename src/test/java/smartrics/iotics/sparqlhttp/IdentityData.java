@@ -4,7 +4,11 @@ import smartrics.iotics.identity.Identity;
 import smartrics.iotics.identity.SimpleIdentity;
 import smartrics.iotics.identity.jna.JnaSdkApiInitialiser;
 import smartrics.iotics.identity.jna.SdkApi;
+import smartrics.iotics.identity.resolver.HttpResolverClient;
+import smartrics.iotics.identity.resolver.ResolverClient;
 
+import java.net.MalformedURLException;
+import java.net.URI;
 import java.nio.file.Paths;
 import java.time.Duration;
 
@@ -19,7 +23,7 @@ record IdentityData(Identity userIdentity, Identity agentIdentity, SimpleIdentit
         String seed = System.getenv("SEED");
         SimpleIdentity si = new SimpleIdentity(api, resolver, seed);
         Identity ui = si.CreateUserIdentity("uKey1", "#user1");
-        Identity ai = si.CreateAgentIdentity("aKey1", "#agent1");
+        Identity ai = si.CreateAgentIdentity("aKey1", "#app1");
         si.UserDelegatesAuthenticationToAgent(ai, ui, "#del1");
         return new IdentityData(ui, ai, si);
     }
