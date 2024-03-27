@@ -47,6 +47,7 @@ public class SparqlProxyApplication {
                 String query = URLDecoder.decode(encodedQuery, StandardCharsets.UTF_8);
                 String token = request.attribute("token");
                 MetaAPIGrpc.MetaAPIStub api = connection.newMetaAPIStub(token);
+                System.out.println(query);
                 return runQuery(scope, request, response, api, query);
             } catch (Exception e) {
                 String message = e.getMessage();
@@ -145,12 +146,12 @@ public class SparqlProxyApplication {
     }
 
     private static String findHostDNS(String[] args) {
-        String value = System.getenv("hostDNS");
+        String value = System.getenv("HOST_DNS");
         if (value != null) {
             return value;
         }
 
-        String argKey = "hostDNS=";
+        String argKey = "HOST_DNS=";
         for (String arg : args) {
             if (arg.startsWith(argKey)) {
                 return arg.substring(argKey.length());
@@ -161,6 +162,6 @@ public class SparqlProxyApplication {
         if (sp != null) {
             return sp;
         }
-        throw new IllegalStateException("missing hostDNS");
+        throw new IllegalStateException("missing HOST_DNS");
     }
 }
