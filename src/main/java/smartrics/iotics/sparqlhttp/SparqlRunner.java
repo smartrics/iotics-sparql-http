@@ -7,7 +7,6 @@ import io.grpc.stub.StreamObserver;
 import org.jetbrains.annotations.NotNull;
 import smartrics.iotics.space.Builders;
 
-import javax.net.ssl.SSLEngineResult;
 import java.util.Comparator;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -28,7 +27,6 @@ public class SparqlRunner implements QueryRunner {
         this.outputStream = output;
         this.resultContentType = resultContentType;
     }
-
 
     public void run(String query) {
         StreamObserver<SparqlQueryResponse> responseObserver = newResponseObserver();
@@ -65,7 +63,7 @@ public class SparqlRunner implements QueryRunner {
                         head = queue.peek(); // Check the head without removing
                         if (head != null && head.getSeqNum() == expectedSeqNum.get()) {
                             queue.take(); // Safe to remove
-                            if(head.getStatus().getCode() == Status.Code.OK.value()) {
+                            if (head.getStatus().getCode() == Status.Code.OK.value()) {
                                 String chunk = head.getResultChunk().toStringUtf8();
                                 outputStream.onNext(chunk);
                                 expectedSeqNum.incrementAndGet();
@@ -95,7 +93,7 @@ public class SparqlRunner implements QueryRunner {
 
             private void callOnCompletedOnce() {
                 boolean canCall = onCompletedCalled.compareAndSet(false, true);
-                if(canCall) {
+                if (canCall) {
                     outputStream.onCompleted();
                 }
             }

@@ -5,16 +5,20 @@ import io.grpc.stub.StreamObserver;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class SyncStreamObserverToStringAdapter implements StreamObserver<String> {
+public class StreamObserverToStringAdapter implements StreamObserver<String> {
 
     private final StringBuilder b = new StringBuilder();
     private final CountDownLatch latch = new CountDownLatch(1);
 
     private final AtomicReference<Throwable> err = new AtomicReference<>();
 
+    public StreamObserverToStringAdapter() {
+
+    }
 
     @Override
     public void onNext(String s) {
+        System.out.println(s);
         b.append(s);
     }
 
@@ -33,7 +37,6 @@ public class SyncStreamObserverToStringAdapter implements StreamObserver<String>
 
     @Override
     public void onError(Throwable throwable) {
-        System.out.println("on error count latch");
         err.set(throwable);
         latch.countDown();
     }
