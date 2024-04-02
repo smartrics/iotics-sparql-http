@@ -47,7 +47,14 @@ SEED=<a valid identity seed>
 
 The proxy should implement most of https://www.w3.org/TR/sparql11-protocol/ for `SELECT`.
 
-Note: Currently there's no support for `default-graph-uri`and `named-graph-uri`
+### Endpoints
+
+The following endpoints are supported for GET and POST
+
+| Endpoint      | description                                      |
+|---------------|--------------------------------------------------|
+| /sparql/local | for requests scoped to the local IOTICSpace only | 
+| /sparql       | for requests scoped to the network               | 
 
 ### Required headers
 
@@ -95,4 +102,9 @@ Content-Type: application/sparql-query
 
 <query>
 ```
+
+## Limitations
+
+* No support for `default-graph-uri`and `named-graph-uri`
+* No support for CORS and OPTION (pre-flight requests)
 
