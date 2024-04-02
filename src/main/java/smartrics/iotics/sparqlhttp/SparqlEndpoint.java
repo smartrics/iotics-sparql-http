@@ -5,10 +5,12 @@ import com.iotics.api.Scope;
 import com.iotics.api.SparqlResultType;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Launcher;
+import io.vertx.core.MultiMap;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.BodyHandler;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -20,8 +22,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import static smartrics.iotics.sparqlhttp.ContentTypesMap.mimeFor;
 
 public class SparqlEndpoint extends AbstractVerticle {
-
-    private static final Map<String, IOTICSConnection> connections = new ConcurrentHashMap<>(16);
 
     private static final String KEY_HOST_DNS = "HOST_DNS";
     private static final String KEY_TOKEN = "TOKEN";
@@ -44,6 +44,16 @@ public class SparqlEndpoint extends AbstractVerticle {
         ENV.put(KEY_TOKEN, load(args, KEY_TOKEN));
         ENV.put(KEY_PORT, load(args, KEY_PORT));
         ENV.putIfAbsent(KEY_PORT, DEFAULT_PORT);
+
+        System.out.println("Configuration: ");
+        System.out.println(" host: " + Optional.ofNullable(ENV.get(KEY_HOST_DNS)).orElse("<not configured>"));
+        String value = ENV.get(KEY_TOKEN);
+        if(value != null) {
+            value = "<secret configured>";
+        }
+        System.out.println(" token: " + Optional.ofNullable(value).orElse("<not configured>"));
+        System.out.println(" port: " + Optional.ofNullable(ENV.get(KEY_PORT)).orElse("<not configured>"));
+
     }
 
     public static String load(String[] args, String key) {
@@ -70,7 +80,7 @@ public class SparqlEndpoint extends AbstractVerticle {
 
         Router router = Router.router(vertx);
 
-        router.route().handler(this::validateRequest);
+        router.route().handler(BodyHandler.create()).handler(this::validateRequest);
         router.get("/sparql/local").handler(ctx -> this.handleGet(ctx, Scope.LOCAL));
         router.get("/sparql").handler(ctx -> this.handleGet(ctx, Scope.GLOBAL));
         router.post("/sparql/local").handler(ctx -> this.handlePost(ctx, Scope.LOCAL));
@@ -92,9 +102,22 @@ public class SparqlEndpoint extends AbstractVerticle {
 
     private void handlePost(RoutingContext ctx, Scope scope) {
         try {
+            String query;
             String token = ctx.get("token");
-            String query = ctx.body().asString();
-            handle(scope, ctx, token, query);
+            String ct = ctx.request().getHeader("Content-Type");
+            if("application/x-www-form-urlencoded".equals(ct)) {
+                MultiMap formAttributes = ctx.request().formAttributes();
+                // Example: Get a form attribute named "exampleField"
+                query = formAttributes.get("query");
+            } else {
+                query = ctx.body().asString();
+            }
+            if(query != null) {
+                handle(scope, ctx, token, query);
+            } else {
+                ctx.response().setStatusCode(200);
+                ctx.response().send();
+            }
         } catch (ValidationException e) {
             sendError(e.getCode(), e.getMessage(), ctx.response());
         }
@@ -103,7 +126,7 @@ public class SparqlEndpoint extends AbstractVerticle {
     private void handle(Scope scope, RoutingContext ctx, String token, String query) {
         try {
             String host = findHost(ctx);
-            IOTICSConnection connection = connections.computeIfAbsent(host, IOTICSConnection::new);
+            IOTICSConnection connection = new IOTICSConnection(host);
             MetaAPIGrpc.MetaAPIStub api = connection.newMetaAPIStub(token);
             SparqlResultType type = ctx.get("acceptedResponseType");
             String mime = mimeFor(type);
@@ -161,7 +184,6 @@ public class SparqlEndpoint extends AbstractVerticle {
             if (message != null) {
                 throw new ValidationException(401, ErrorMessage.toJson("Access Denied: " + message));
             }
-
         } catch (IllegalArgumentException e) {
             throw new ValidationException(401, ErrorMessage.toJson("Access Denied: " + e.getMessage()));
         }
@@ -198,7 +220,7 @@ public class SparqlEndpoint extends AbstractVerticle {
             // Clients must set the content type header of the HTTP request to application/sparql-query
             // spec par 2.1.3
             String ct = request.getHeader("Content-Type");
-            if (!"application/sparql-query".equals(ct)) {
+            if (!"application/sparql-query".equals(ct) && !"application/x-www-form-urlencoded".equals(ct)) {
                 throw new ValidationException(400, ErrorMessage.toJson("missing or invalid content type"));
             }
 

@@ -18,7 +18,6 @@ public class StreamObserverToStringAdapter implements StreamObserver<String> {
 
     @Override
     public void onNext(String s) {
-        System.out.println(s);
         b.append(s);
     }
 
