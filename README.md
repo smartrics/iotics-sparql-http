@@ -16,8 +16,8 @@ mvn clean package
 java -jar iotics-sparql-http-<version>.jar
 ```
 
-the following variables are either red from the environment or via program arguments.
-Environment values will always be preferred
+The following variables are either read from the environment or via program arguments.
+Environment values will always be preferred if not null.
 
 | Property  | default | optional | description                                                                                                                                   | 
 |-----------|---------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------|
@@ -32,9 +32,9 @@ java -jar iotics-sparql-http-<version>.jar HOST_DNS=myhost.iotics.space PORT=80
 ```
 
 
-### Test
+### Integration Tests
 
-To run the integration tests, you need to create an .env file with the following content
+To run the integration tests(manually, from within the IDE), you need to create an .env file with the following content
 
 ```properties
 PORT=<the port where the HTTP endpoint is listening>
@@ -51,10 +51,10 @@ The proxy should implement most of https://www.w3.org/TR/sparql11-protocol/ for 
 
 The following endpoints are supported for GET and POST
 
-| Endpoint      | description                                      |
-|---------------|--------------------------------------------------|
-| /sparql/local | for requests scoped to the local IOTICSpace only | 
-| /sparql       | for requests scoped to the network               | 
+| Endpoint        | description                                      |
+|-----------------|--------------------------------------------------|
+| `/sparql/local` | for requests scoped to the local IOTICSpace only | 
+| `/sparql`       | for requests scoped to the network               | 
 
 ### Required headers
 
