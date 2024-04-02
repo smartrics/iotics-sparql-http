@@ -10,11 +10,27 @@ Build with
 mvn clean package
 ```
 
-then
+### Run
 
-```commandline
+```
 java -jar iotics-sparql-http-<version>.jar
 ```
+
+the following variables are either red from the environment or via program arguments.
+Environment values will always be preferred
+
+| Property  | default | optional | description                                                                                                                                   | 
+|-----------|---------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| HOST_DNS  | n/a     | yes      | the DNS of the host where to forward gRPC requests to. If omitted, the host will be taken via the `X-IOTICS-HOST`                             |
+| PORT | 8080    | yes | port where the porxy http listener is deployed                                                                                                |
+| TOKEN | n/a | yes | a valid token passed on by the proxy in lieu of the one extracted via the `Authorization` header. The latter will always override this value. | 
+
+Example:
+
+```
+java -jar iotics-sparql-http-<version>.jar HOST_DNS=myhost.iotics.space PORT=80
+```
+
 
 ### Test
 
@@ -27,15 +43,11 @@ RESOLVER_URL=<the resolver used to manage identities (find it at https://{HOST_D
 SEED=<a valid identity seed>
 ```
 
-To run the proxy with pre-canned authentication 
-(useful if you want to use the proxy with existing plugins that don't handle IOTICS Identity) you need to configure
-a valid TOKEN adding it to the `.env` file
-
-```properties
-TOKEN=<eyJhbG...sjc4Q_Q>
-```
-
 ## Use
+
+The proxy should implement most of https://www.w3.org/TR/sparql11-protocol/ for `SELECT`.
+
+Note: Currently there's no support for `default-graph-uri`and `named-graph-uri`
 
 ### Required headers
 
