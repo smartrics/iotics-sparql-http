@@ -12,7 +12,7 @@ import java.util.Locale;
 public record SimpleToken(Payload payload) {
 
     public static SimpleToken parse(String token) {
-        JWT jwt = new JWT(token);
+        JWT jwt = JWT.parse(token);
         Gson gson = new Gson();
         String string = jwt.toNiceString();
         return gson.fromJson(string, SimpleToken.class);

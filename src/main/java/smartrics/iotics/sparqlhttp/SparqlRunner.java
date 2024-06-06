@@ -5,7 +5,8 @@ import com.iotics.api.*;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import org.jetbrains.annotations.NotNull;
-import smartrics.iotics.space.Builders;
+import smartrics.iotics.host.Builders;
+import smartrics.iotics.identity.Identity;
 
 import java.util.Comparator;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -15,14 +16,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class SparqlRunner implements QueryRunner {
 
     private final MetaAPIGrpc.MetaAPIStub metaAPIStub;
-    private final String agentId;
+    private final Identity agentIdentity;
     private final Scope scope;
     private final StreamObserver<String> outputStream;
     private final SparqlResultType resultContentType;
 
-    private SparqlRunner(MetaAPIGrpc.MetaAPIStub apiStub, String agentId, Scope scope, SparqlResultType resultContentType, StreamObserver<String> output) {
+    private SparqlRunner(MetaAPIGrpc.MetaAPIStub apiStub, Identity agentIdentity, Scope scope, SparqlResultType resultContentType, StreamObserver<String> output) {
         this.metaAPIStub = apiStub;
-        this.agentId = agentId;
+        this.agentIdentity = agentIdentity;
         this.scope = scope;
         this.outputStream = output;
         this.resultContentType = resultContentType;
@@ -32,7 +33,7 @@ public class SparqlRunner implements QueryRunner {
         StreamObserver<SparqlQueryResponse> responseObserver = newResponseObserver();
         ByteString value = ByteString.copyFromUtf8(query);
         metaAPIStub.sparqlQuery(SparqlQueryRequest.newBuilder()
-                .setHeaders(Builders.newHeadersBuilder(agentId))
+                .setHeaders(Builders.newHeadersBuilder(agentIdentity))
                 .setScope(scope)
                 .setPayload(SparqlQueryRequest.Payload.newBuilder()
                         .setQuery(value)
@@ -112,7 +113,7 @@ public class SparqlRunner implements QueryRunner {
 
     public static final class SparqlRunnerBuilder {
         private MetaAPIGrpc.MetaAPIStub metaAPIStub;
-        private String agentId;
+        private Identity agentIdentity;
         private SparqlResultType resultContentType;
         private Scope scope;
         private StreamObserver<String> outputStream;
@@ -129,8 +130,8 @@ public class SparqlRunner implements QueryRunner {
             return this;
         }
 
-        public SparqlRunnerBuilder withAgentId(String agentId) {
-            this.agentId = agentId;
+        public SparqlRunnerBuilder withAgentIdentity(Identity agentIdentity) {
+            this.agentIdentity = agentIdentity;
             return this;
         }
 
@@ -150,7 +151,7 @@ public class SparqlRunner implements QueryRunner {
         }
 
         public SparqlRunner build() {
-            return new SparqlRunner(metaAPIStub, agentId, scope, resultContentType, outputStream);
+            return new SparqlRunner(metaAPIStub, agentIdentity, scope, resultContentType, outputStream);
         }
     }
 }

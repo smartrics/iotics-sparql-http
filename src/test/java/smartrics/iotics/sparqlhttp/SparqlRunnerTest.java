@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
+import smartrics.iotics.identity.Identity;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -40,7 +41,7 @@ class SparqlRunnerTest {
     void setUp() {
         sparqlRunner = SparqlRunner.SparqlRunnerBuilder.newBuilder()
                 .withMetaAPIStub(metaAPIStub)
-                .withAgentId("agentId")
+                .withAgentIdentity(new Identity("k", "n", "did:iotics:agentDid"))
                 .withScope(Scope.LOCAL)
                 .withSparqlResultType(SparqlResultType.SPARQL_CSV)
                 .withOutputStream(outputStream)

@@ -12,6 +12,7 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <iotics4j.version>1.2</iotics4j.version>
     </properties>
 
     <dependencies>
@@ -48,14 +49,13 @@
         </dependency>
         <dependency>
             <groupId>smartrics.iotics</groupId>
-            <artifactId>iotics-java-agent</artifactId>
-            <version>0.0.1</version>
+            <artifactId>iotics-agent-twins</artifactId>
+            <version>${iotics4j.version}</version>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/smartrics.iotics/iotics-identity-java -->
         <dependency>
             <groupId>smartrics.iotics</groupId>
-            <artifactId>iotics-identity-java</artifactId>
-            <version>0.2</version>
+            <artifactId>iotics-identity-lib</artifactId>
+            <version>${iotics4j.version}</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>

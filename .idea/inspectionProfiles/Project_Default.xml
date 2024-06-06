@@ -18,15 +18,21 @@
       <option name="ignoredModules">
         <list>
           <option value="iotics-sparql-http" />
+          <option value="iotics-sparql-http" />
+          <option value="iotics-sparql-http" />
         </list>
       </option>
       <option name="ignoredPackages">
         <list>
           <option value="commons-codec:commons-codec:1.11" />
+          <option value="com.squareup.okio:okio-jvm:3.2.0" />
+          <option value="com.squareup.okio:okio:3.2.0" />
         </list>
       </option>
       <option name="ignoredReasons">
         <list>
+          <option value="Not exploitable" />
+          <option value="Not exploitable" />
           <option value="Not exploitable" />
         </list>
       </option>

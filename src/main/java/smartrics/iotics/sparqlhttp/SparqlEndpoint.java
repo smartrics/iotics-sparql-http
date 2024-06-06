@@ -11,6 +11,7 @@ import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
+import smartrics.iotics.identity.Identity;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -137,12 +138,13 @@ public class SparqlEndpoint extends AbstractVerticle {
             StreamObserverToStringAdapter outputStream = new StreamObserverToStringAdapter();
 
             String agentDID = ctx.get("agentDID");
+            Identity agentIdentity = new Identity("someKey", "nameName", agentDID);
             QueryRunner runner = SparqlRunner.SparqlRunnerBuilder.newBuilder()
                     .withScope(scope)
                     .withSparqlResultType(type)
                     .withMetaAPIStub(api)
                     .withOutputStream(outputStream)
-                    .withAgentId(agentDID)
+                    .withAgentIdentity(agentIdentity)
                     .build();
             runner.run(query);
 
