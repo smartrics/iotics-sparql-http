@@ -16,19 +16,19 @@ mvn clean package
 java -jar iotics-sparql-http-<version>.jar
 ```
 
-The following variables are either read from the environment or via program arguments.
+The following variables are read from the environment or via system properties arguments.
 Environment values will always be preferred if not null.
 
-| Property  | default | optional | description                                                                                                                                   | 
-|-----------|---------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------|
-| HOST_DNS  | n/a     | yes      | the DNS of the host where to forward gRPC requests to. If omitted, the host will be taken via the `X-IOTICS-HOST`                             |
-| PORT | 8080    | yes | port where the porxy http listener is deployed                                                                                                |
-| TOKEN | n/a | yes | a valid token passed on by the proxy in lieu of the one extracted via the `Authorization` header. The latter will always override this value. | 
+| Property   | default | optional | description                                                                                                                                   | 
+|------------|---------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| HOST_DNS   | n/a     | no       | the DNS of the host where to forward gRPC requests to. If omitted, the host will be taken via the `X-IOTICS-HOST`                             |
+| PORT       | 8080    | yes      | port where the porxy http listener is deployed                                                                                                |
+| AGENT_SEED | n/a     | no       | port where the porxy http listener is deployed                                                                                                |
 
 Example:
 
 ```
-java -jar iotics-sparql-http-<version>.jar HOST_DNS=myhost.iotics.space PORT=80
+java -DHOST_DNS=myhost.iotics.space -DPORT=80 -jar iotics-sparql-http-<version>.jar 
 ```
 
 
@@ -40,8 +40,11 @@ To run the integration tests(manually, from within the IDE), you need to create 
 PORT=<the port where the HTTP endpoint is listening>
 HOST_DNS=<the host DNS where to forward the gRPC requests>
 RESOLVER_URL=<the resolver used to manage identities (find it at https://{HOST_DNS}/index.json)>
-SEED=<a valid identity seed>
+AGENT_SEED=<a valid identity seed>
+USER_SEED=<a valid identity seed>
+USER_KEY=<a valid key>
 ```
+
 
 ## Use
 
@@ -75,11 +78,6 @@ for a form encoded query in the body
 
 ```properties
 Content-Type: application/x-www-form-urlencoded
-```
-
-### Required headers for dynamic proxying
-```properties
-X-IOTICS-HOST: <host DNS>
 ```
 
 ### SPARQL request example

@@ -6,13 +6,18 @@ import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
+import smartrics.iotics.identity.experimental.JWT;
+import smartrics.iotics.sparqlhttp.integration.EnvFileLoader;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -24,6 +29,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(VertxExtension.class)
 class SparqlEndpointTest {
+    private final String bearer = "user:seed";
     private final String token = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJodHRwczovL2RpZC5zdGcuaW90aWNzLmNvbSIsImV4cCI6MjAyNjMzNzc2NCwiaWF0IjoxNzEwOTc3NzM0LCJpc3MiOiJkaWQ6aW90aWNzOmlvdFlzcWpnUUV5emRBZm8zQU5OV1YyeHh6VURGdVR2eWRDViNhZ2VudDEiLCJzdWIiOiJkaWQ6aW90aWNzOmlvdExVbXdIREZ0cGZMRVdUZUdBUXd5cDRZNUZvU1R0NGpiZyJ9.CnZHkMoKnmr7z2xAHMiHfQiqfrzLmNpsk1Mt_CAH3h98o_mhH1HkB-8E5ieTIXP2jmzmE0U0mCcBNmWMSMaRtQ";
 
     static Stream<String> authorizationHeaderProvider() {
@@ -34,6 +40,16 @@ class SparqlEndpointTest {
         return Stream.of(null, "*/*");
     }
 
+    @BeforeAll
+    public static void setUpClass() {
+        try {
+            EnvFileLoader.loadEnvFile(".env");
+        } catch (IOException e) {
+            throw new RuntimeException("unable to find the .env file", e);
+        }
+    }
+
+
     @ParameterizedTest
     @MethodSource("authorizationHeaderProvider")
     void testInvalidToken(String value, VertxTestContext testContext) {
@@ -42,7 +58,6 @@ class SparqlEndpointTest {
         HttpServerResponse response = mock(HttpServerResponse.class);
         when(routingContext.response()).thenReturn(response);
         when(routingContext.request().getHeader("Authorization")).thenReturn(value);
-        when(routingContext.request().getHeader("X-IOTICS-HOST")).thenReturn("some.iotics.space");
 
         // Mock other necessary parts of routingContext as needed
         when(response.setStatusCode(anyInt())).thenReturn(response);
@@ -72,8 +87,7 @@ class SparqlEndpointTest {
         RoutingContext routingContext = mock(RoutingContext.class, RETURNS_DEEP_STUBS);
         HttpServerResponse response = mock(HttpServerResponse.class);
         when(routingContext.response()).thenReturn(response);
-        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + token);
-        when(routingContext.request().getHeader("X-IOTICS-HOST")).thenReturn("some.iotics.space");
+        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + bearer);
         when(routingContext.request().getHeader("Accept")).thenReturn(acceptValue);
 
 
@@ -99,8 +113,7 @@ class SparqlEndpointTest {
         RoutingContext routingContext = mock(RoutingContext.class, RETURNS_DEEP_STUBS);
         HttpServerResponse response = mock(HttpServerResponse.class);
         when(routingContext.response()).thenReturn(response);
-        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + token);
-        when(routingContext.request().getHeader("X-IOTICS-HOST")).thenReturn("some.iotics.space");
+        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + bearer);
         when(routingContext.request().getHeader("Accept")).thenReturn(value);
 
         SparqlEndpoint endpoint = new SparqlEndpoint();
@@ -117,8 +130,7 @@ class SparqlEndpointTest {
         RoutingContext routingContext = mock(RoutingContext.class, RETURNS_DEEP_STUBS);
         HttpServerResponse response = mock(HttpServerResponse.class);
         when(routingContext.response()).thenReturn(response);
-        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + token);
-        when(routingContext.request().getHeader("X-IOTICS-HOST")).thenReturn("some.iotics.space");
+        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + bearer);
         when(routingContext.queryParam(value)).thenReturn(List.of("someValue"));
 
         when(response.setStatusCode(anyInt())).thenReturn(response);
@@ -142,8 +154,7 @@ class SparqlEndpointTest {
         RoutingContext routingContext = mock(RoutingContext.class, RETURNS_DEEP_STUBS);
         HttpServerResponse response = mock(HttpServerResponse.class);
         when(routingContext.response()).thenReturn(response);
-        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + token);
-        when(routingContext.request().getHeader("X-IOTICS-HOST")).thenReturn("some.iotics.space");
+        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + bearer);
         HttpMethod method = mock(HttpMethod.class);
         when(routingContext.request().method()).thenReturn(method);
         when(method.name()).thenReturn("GET");
@@ -164,17 +175,20 @@ class SparqlEndpointTest {
         RoutingContext routingContext = mock(RoutingContext.class, RETURNS_DEEP_STUBS);
         HttpServerResponse response = mock(HttpServerResponse.class);
         when(routingContext.response()).thenReturn(response);
-        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + token);
-        when(routingContext.request().getHeader("X-IOTICS-HOST")).thenReturn("some.iotics.space");
+        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + bearer);
         when(routingContext.request().getHeader("Accept")).thenReturn("*/*");
 
         SparqlEndpoint endpoint = new SparqlEndpoint();
         endpoint.validateRequest(routingContext);
 
-        verify(routingContext).put("token", token);
-        verify(routingContext).put("userDID", "did:iotics:iotLUmwHDFtpfLEWTeGAQwyp4Y5FoSTt4jbg");
-        verify(routingContext).put("agentDID", "did:iotics:iotYsqjgQEyzdAfo3ANNWV2xxzUDFuTvydCV");
-        verify(routingContext).put("agentId", "agent1");
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+
+        verify(routingContext).put(eq("token"), captor.capture());
+        String tokenString = captor.getValue();
+        SimpleToken st = SimpleToken.parse(tokenString);
+        verify(routingContext).put("userDID", st.userDID());
+        verify(routingContext).put("agentDID", st.agentDID());
+        verify(routingContext).put("agentId", st.agentId());
         verify(routingContext).put("acceptedResponseType", SparqlResultType.SPARQL_JSON);
 
         testContext.completeNow();

@@ -11,10 +11,12 @@ import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
+import org.jetbrains.annotations.NotNull;
 import smartrics.iotics.identity.Identity;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -25,55 +27,49 @@ import static smartrics.iotics.sparqlhttp.ContentTypesMap.mimeFor;
 public class SparqlEndpoint extends AbstractVerticle {
 
     private static final String KEY_HOST_DNS = "HOST_DNS";
-    private static final String KEY_TOKEN = "TOKEN";
+    private static final String KEY_AGENT_SEED = "AGENT_SEED";
+    private static final String KEY_AGENT_KEY = "AGENT_KEY";
     private static final String KEY_PORT = "PORT";
     private static final String DEFAULT_PORT = "8080";
 
-    private static final String HOST_HEADER = "X-IOTICS-HOST";
-
-
     private static final Map<String, String> ENV = new ConcurrentHashMap<>();
+    private final Identities identities;
+
+    public SparqlEndpoint() {
+        setupEnv();
+        identities = new Identities(ENV.get(KEY_HOST_DNS), ENV.get(KEY_AGENT_KEY), ENV.get(KEY_AGENT_SEED));
+    }
 
 
     public static void main(String[] args) {
-        setupEnv(args);
         Launcher.executeCommand("run", SparqlEndpoint.class.getName());
     }
 
-    private static void setupEnv(String[] args) {
-        ENV.put(KEY_HOST_DNS, load(args, KEY_HOST_DNS));
-        ENV.put(KEY_TOKEN, load(args, KEY_TOKEN));
-        ENV.put(KEY_PORT, load(args, KEY_PORT));
+    private static void setupEnv() {
+        ENV.put(KEY_HOST_DNS, load(KEY_HOST_DNS));
+        ENV.put(KEY_AGENT_SEED, load(KEY_AGENT_SEED));
+        ENV.put(KEY_AGENT_KEY, load(KEY_AGENT_KEY));
+        ENV.put(KEY_PORT, load(KEY_PORT));
         ENV.putIfAbsent(KEY_PORT, DEFAULT_PORT);
 
         System.out.println("Configuration: ");
         System.out.println(" host: " + Optional.ofNullable(ENV.get(KEY_HOST_DNS)).orElse("<not configured>"));
-        String value = ENV.get(KEY_TOKEN);
+        String value = ENV.get(KEY_AGENT_SEED);
         if(value != null) {
             value = "<secret configured>";
         }
-        System.out.println(" token: " + Optional.ofNullable(value).orElse("<not configured>"));
+        System.out.println(" agent seed: " + Optional.ofNullable(value).orElse("<not configured>"));
+        System.out.println(" agent key: " + Optional.ofNullable(ENV.get(KEY_AGENT_KEY)).orElse("<not configured>"));
         System.out.println(" port: " + Optional.ofNullable(ENV.get(KEY_PORT)).orElse("<not configured>"));
 
     }
 
-    public static String load(String[] args, String key) {
+    public static String load(String key) {
         String value = System.getenv(key);
         if (value != null) {
             return value;
         }
-
-        String argKey = key + "=";
-        for (String arg : args) {
-            if (arg.startsWith(argKey)) {
-                return arg.substring(argKey.length());
-            }
-        }
         return System.getProperty(key);
-    }
-
-    private static String findHost(RoutingContext ctx) {
-        return Optional.ofNullable(ctx.request().getHeader(HOST_HEADER)).orElse(ENV.get(KEY_HOST_DNS));
     }
 
     public void start() {
@@ -82,12 +78,19 @@ public class SparqlEndpoint extends AbstractVerticle {
         Router router = Router.router(vertx);
 
         router.route().handler(BodyHandler.create()).handler(this::validateRequest);
+        router.get("/health").handler(this::handleHealth);
         router.get("/sparql/local").handler(ctx -> this.handleGet(ctx, Scope.LOCAL));
         router.get("/sparql").handler(ctx -> this.handleGet(ctx, Scope.GLOBAL));
         router.post("/sparql/local").handler(ctx -> this.handlePost(ctx, Scope.LOCAL));
         router.post("/sparql").handler(ctx -> this.handlePost(ctx, Scope.GLOBAL));
 
         vertx.createHttpServer().requestHandler(router).listen(Integer.parseInt(port));
+    }
+
+    private void handleHealth(RoutingContext ctx) {
+        ctx.response().setStatusCode(200);
+        ctx.response().send("{ 'status': 'OK' }");
+        ctx.response().end();
     }
 
     private void handleGet(RoutingContext ctx, Scope scope) {
@@ -126,7 +129,7 @@ public class SparqlEndpoint extends AbstractVerticle {
 
     private void handle(Scope scope, RoutingContext ctx, String token, String query) {
         try {
-            String host = findHost(ctx);
+            String host = ENV.get(KEY_HOST_DNS);
             IOTICSConnection connection = new IOTICSConnection(host);
             MetaAPIGrpc.MetaAPIStub api = connection.newMetaAPIStub(token);
             SparqlResultType type = ctx.get("acceptedResponseType");
@@ -166,30 +169,46 @@ public class SparqlEndpoint extends AbstractVerticle {
 
     void validateRequest(RoutingContext ctx) throws ValidationException {
         HttpServerRequest request = ctx.request();
-        String host = findHost(ctx);
-        if (host == null) {
-            throw new ValidationException(400, ErrorMessage.toJson("Invalid request: missing host dns from header " + HOST_HEADER));
-        }
-        String token;
-        String authHeader = request.getHeader("Authorization");
-        token = System.getenv("TOKEN");
-        if (token == null) {
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                throw new ValidationException(401, ErrorMessage.toJson("Access Denied: no Bearer token provided"));
-            }
-            token = authHeader.substring("Bearer ".length());
-        }
-        SimpleToken simpleToken;
-        try {
-            simpleToken = SimpleToken.parse(token);
-            String message = tokenValidMessage(simpleToken);
-            if (message != null) {
-                throw new ValidationException(401, ErrorMessage.toJson("Access Denied: " + message));
-            }
-        } catch (IllegalArgumentException e) {
-            throw new ValidationException(401, ErrorMessage.toJson("Access Denied: " + e.getMessage()));
+        validateGraphName(ctx);
+        getValidQuery(request);
+        TokenPair tokenPair = makeOrGetValidToken(request);
+        SparqlResultType mappedAccepted = getValidAcceptedResultType(request);
+
+        ctx.put("token", tokenPair.tokenString);
+        ctx.put("acceptedResponseType", mappedAccepted);
+        ctx.put("agentDID", tokenPair.simpleToken.agentDID());
+        ctx.put("agentId", tokenPair.simpleToken.agentId());
+        ctx.put("userDID", tokenPair.simpleToken.userDID());
+
+        ctx.next();
+    }
+
+    private static void getValidQuery(HttpServerRequest request) {
+        String query = request.getParam("query");
+        if (query == null && "get".equalsIgnoreCase(request.method().name())) {
+            throw new ValidationException(400, ErrorMessage.toJson("missing query"));
         }
 
+        if ("post".equalsIgnoreCase(request.method().name())) {
+            // Clients must set the content type header of the HTTP request to application/sparql-query
+            // spec par 2.1.3
+            String ct = request.getHeader("Content-Type");
+            if (!"application/sparql-query".equals(ct) && !"application/x-www-form-urlencoded".equals(ct)) {
+                throw new ValidationException(400, ErrorMessage.toJson("missing or invalid content type"));
+            }
+        }
+    }
+
+    private static void validateGraphName(RoutingContext ctx) {
+        // SPARQL-1.1 Par 2.1.4
+        List<String> def = ctx.queryParam("default-graph-uri");
+        List<String> named = ctx.queryParam("named-graph-uri");
+        if (def.size() > 0 || named.size() > 0) {
+            throw new ValidationException(400, ErrorMessage.toJson("RDF datasets not allowed"));
+        }
+    }
+
+    private static @NotNull SparqlResultType getValidAcceptedResultType(HttpServerRequest request) {
         String accepted = request.getHeader("Accept");
         if (accepted != null) {
             // TODO: better support multiple Accept with quality flag
@@ -205,39 +224,40 @@ public class SparqlEndpoint extends AbstractVerticle {
         if (mappedAccepted.equals(SparqlResultType.UNRECOGNIZED)) {
             throw new ValidationException(400, ErrorMessage.toJson("Unsupported response mime type: " + accepted));
         }
-
-        // SPARQL-1.1 Par 2.1.4
-        List<String> def = ctx.queryParam("default-graph-uri");
-        List<String> named = ctx.queryParam("named-graph-uri");
-        if (def.size() > 0 || named.size() > 0) {
-            throw new ValidationException(400, ErrorMessage.toJson("RDF datasets not allowed"));
-        }
-
-        String query = request.getParam("query");
-        if (query == null && "get".equalsIgnoreCase(request.method().name())) {
-            throw new ValidationException(400, ErrorMessage.toJson("missing query"));
-        }
-
-        if ("post".equalsIgnoreCase(request.method().name())) {
-            // Clients must set the content type header of the HTTP request to application/sparql-query
-            // spec par 2.1.3
-            String ct = request.getHeader("Content-Type");
-            if (!"application/sparql-query".equals(ct) && !"application/x-www-form-urlencoded".equals(ct)) {
-                throw new ValidationException(400, ErrorMessage.toJson("missing or invalid content type"));
-            }
-
-        }
-
-        ctx.put("token", token);
-        ctx.put("acceptedResponseType", mappedAccepted);
-        ctx.put("agentDID", simpleToken.agentDID());
-        ctx.put("agentId", simpleToken.agentId());
-        ctx.put("userDID", simpleToken.userDID());
-
-        ctx.next();
+        return mappedAccepted;
     }
 
-    public String tokenValidMessage(SimpleToken token) {
+    private @NotNull TokenPair makeOrGetValidToken(HttpServerRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        String token;
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new ValidationException(401, ErrorMessage.toJson("Access Denied: no Bearer token provided"));
+        }
+        String bearer = authHeader.substring("Bearer ".length());
+        if(bearer.indexOf(":")> 0) {
+            try {
+                token = identities.newToken(bearer, Duration.ofSeconds(60));
+            } catch (RuntimeException e) {
+                e.printStackTrace();
+                throw new ValidationException(401, ErrorMessage.toJson("Access Denied: unable to process Bearer token provided"));
+            }
+        } else {
+            throw new ValidationException(401, ErrorMessage.toJson("Access Denied: invalid Bearer token provided"));
+        }
+        SimpleToken simpleToken;
+        try {
+            simpleToken = SimpleToken.parse(token);
+            String message = tokenValidMessage(simpleToken);
+            if (message != null) {
+                throw new ValidationException(401, ErrorMessage.toJson("Access Denied: " + message));
+            }
+        } catch (IllegalArgumentException e) {
+            throw new ValidationException(401, ErrorMessage.toJson("Access Denied: " + e.getMessage()));
+        }
+        return new TokenPair(token, simpleToken);
+    }
+
+    public static String tokenValidMessage(SimpleToken token) {
 
         try {
             if (token.isValid()) {
@@ -261,5 +281,7 @@ public class SparqlEndpoint extends AbstractVerticle {
             return code;
         }
     }
+
+    record TokenPair(String tokenString, SimpleToken simpleToken){}
 
 }

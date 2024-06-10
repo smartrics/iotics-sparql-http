@@ -28,11 +28,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(VertxExtension.class)
 public class SparqlEndpointIT {
-
-    private static IdentityData identityAPI;
-    private String token;
     private String hostDNS;
     private int hostPort;
+    private String bearer;
 
     @BeforeAll
     public static void setUpClass() {
@@ -41,7 +39,6 @@ public class SparqlEndpointIT {
         } catch (IOException e) {
             throw new RuntimeException("unable to find the .env file", e);
         }
-        identityAPI = IdentityData.make();
     }
 
     private static void verifyValidResponse(VertxTestContext testContext, HttpClientResponse response) {
@@ -60,7 +57,7 @@ public class SparqlEndpointIT {
 
     @BeforeEach
     public void setup(Vertx vertx, VertxTestContext testContext) {
-        this.token = identityAPI.token(Duration.ofSeconds(60));
+        this.bearer = System.getProperty("USER_KEY") + ":" + System.getProperty("USER_SEED");
         this.hostDNS = System.getProperty("HOST_DNS");
         this.hostPort = Integer.parseInt(System.getProperty("PORT"));
         vertx.deployVerticle(new SparqlEndpoint(), testContext.succeedingThenComplete());
@@ -130,9 +127,8 @@ public class SparqlEndpointIT {
     }
 
     private void addCommonHeaders(HttpClientRequest request) {
-        request.putHeader("Authorization", "Bearer " + token);
+        request.putHeader("Authorization", "Bearer " + this.bearer);
         request.putHeader("Accept", "application/sparql-results+json");
-        request.putHeader("X-IOTICS-HOST", this.hostDNS);
     }
 
     private void addPostHeaders(HttpClientRequest request) {
