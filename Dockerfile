@@ -3,16 +3,13 @@ ARG OPENJDK_VERSION=21-jdk
 
 FROM maven:3.9.6-eclipse-temurin-21 as builder
 
-RUN mkdir /com.iotic.web.eventing
+RUN mkdir /build
 
-WORKDIR /com.iotic.web.eventing
+WORKDIR /build
 
 COPY ./pom.xml ./pom.xml
-
-COPY ./pb_include ./pb_include/
-COPY ./src/main/java ./src/main/java
-COPY ./src/main/proto ./src/main/proto
-COPY ./src/test/java ./src/test/java
+COPY ./lib ./lib
+COPY ./src ./src
 
 RUN mvn clean package -DskipTests
 
@@ -33,39 +30,23 @@ RUN /usr/bin/jlink \
     --release-info="add:IMPLEMENTOR=iotic:IMPLEMENTOR_VERSION=iotic_JRE" \
     --output "$JAVA_MINIMAL"
 
-# Note: Alpine v3.15+ has websocat available in its repos
-RUN \
-  apk --no-cache add curl && \
-  curl -L -o /websocat https://github.com/vi/websocat/releases/download/v1.11.0/websocat.x86_64-unknown-linux-musl && \
-  chmod a+x /websocat
+# Install curl
+RUN apk add --no-cache curl
 
-# ------------------------------------------------------------------------------
-
-FROM alpine:${ALPINE_VERSION} as stomp-server
+FROM alpine:${ALPINE_VERSION} as app-server
 ARG VERSION
-ARG WEB_API_TAG
-ARG WEB_API_STOMP_TOPIC_PREFIX_PATTERN
 ENV JAVA_HOME=/opt/java-minimal
 ENV \
   httpPort=8080 \
-  httpHost=0.0.0.0 \
-  wsPath=/ws \
-  webApiVersion=$WEB_API_TAG \
-  topicPrefixPattern=$WEB_API_STOMP_TOPIC_PREFIX_PATTERN \
-  implVersion=$VERSION \
-  PATH="$PATH:$JAVA_HOME/bin" \
-  LOG_LEVEL=INFO \
-  JUL_IO_GRPC_LEVEL=WARNING
-
+  httpHost=0.0.0.0
+  PATH="$PATH:$JAVA_HOME/bin"
 
 WORKDIR /app
 
 COPY --from=packager "$JAVA_HOME" "$JAVA_HOME"
-COPY --from=packager /websocat /
-COPY --from=builder /com.iotic.web.eventing/target/com.iotic.web.eventing-jar-with-dependencies.jar ./app.jar
-COPY ./src/main/resources/logging.properties ./src/main/resources/log4j2.xml ./docker-entrypoint.sh ./
-COPY ./conf ./conf/
+COPY --from=builder /build/target/smartrics.iotics.iotics-sparql-http-SHADED.jar ./app.jar
+COPY ./src/main/resources/log4j2.xml ./docker-entrypoint.sh ./
 
-HEALTHCHECK --timeout=2s CMD echo hello | /websocat -q "ws://${httpHost}:${httpPort}${wsPath}" -1E || exit 1
+HEALTHCHECK --timeout=2s CMD echo hello | /websocat -q "ws://${httpHost}:${httpPort}" -1E || exit 1
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
