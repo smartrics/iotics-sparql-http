@@ -64,7 +64,8 @@ class SparqlEndpointTest {
         when(response.setStatusMessage(anyString())).thenReturn(response);
 
         // Instantiate your verticle or the part of it responsible for handling the request
-        SparqlEndpoint endpoint = new SparqlEndpoint(Map.of(SparqlEndpoint.KEY_ENABLE_ANON, "false"));
+
+        SparqlEndpoint endpoint = new SparqlEndpoint(Map.of(ConfigManager.ConfigKey.ENABLE_ANON, "false"));
 
         // Since your logic might be inside handlers, you need to simulate calling the specific handler
         // For example, let's assume you're testing the handlePost method for a global scope
@@ -86,7 +87,7 @@ class SparqlEndpointTest {
         when(routingContext.request().getHeader("Authorization")).thenReturn(null);
         when(routingContext.request().getHeader("Accept")).thenReturn("*/*");
 
-        SparqlEndpoint endpoint = new SparqlEndpoint(Map.of(SparqlEndpoint.KEY_ENABLE_ANON, "true"));
+        SparqlEndpoint endpoint = new SparqlEndpoint(Map.of(ConfigManager.ConfigKey.ENABLE_ANON, "true"));
 
         endpoint.validateRequest(routingContext);
 
