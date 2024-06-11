@@ -68,9 +68,8 @@ class SparqlEndpointTest {
 
         // Since your logic might be inside handlers, you need to simulate calling the specific handler
         // For example, let's assume you're testing the handlePost method for a global scope
-        SparqlEndpoint.ValidationException thrown = assertThrows(SparqlEndpoint.ValidationException.class, () -> {
-            endpoint.validateRequest(routingContext);
-        });
+        SparqlEndpoint.ValidationException thrown = assertThrows(SparqlEndpoint.ValidationException.class, () ->
+                endpoint.validateRequest(routingContext));
 
         // Verify that the response is set to 401
         assertThat("should have code 401", thrown.getCode(), equalTo(401));
@@ -121,9 +120,8 @@ class SparqlEndpointTest {
 
         SparqlEndpoint endpoint = new SparqlEndpoint();
 
-        SparqlEndpoint.ValidationException thrown = assertThrows(SparqlEndpoint.ValidationException.class, () -> {
-            endpoint.validateRequest(routingContext);
-        });
+        SparqlEndpoint.ValidationException thrown = assertThrows(SparqlEndpoint.ValidationException.class, () ->
+                endpoint.validateRequest(routingContext));
 
         assertThat("should have code 400", thrown.getCode(), equalTo(400));
         assertThat("should say Unsupported", thrown.getMessage(), containsString(err));
@@ -163,9 +161,8 @@ class SparqlEndpointTest {
 
         SparqlEndpoint endpoint = new SparqlEndpoint();
 
-        SparqlEndpoint.ValidationException thrown = assertThrows(SparqlEndpoint.ValidationException.class, () -> {
-            endpoint.validateRequest(routingContext);
-        });
+        SparqlEndpoint.ValidationException thrown = assertThrows(SparqlEndpoint.ValidationException.class, () ->
+                endpoint.validateRequest(routingContext));
 
         assertThat("should have code 400", thrown.getCode(), equalTo(400));
         assertThat("should say Unsupported", thrown.getMessage(), containsString("RDF datasets not allowed"));
@@ -185,9 +182,8 @@ class SparqlEndpointTest {
         when(method.name()).thenReturn("GET");
 
         SparqlEndpoint endpoint = new SparqlEndpoint();
-        SparqlEndpoint.ValidationException thrown = assertThrows(SparqlEndpoint.ValidationException.class, () -> {
-            endpoint.validateRequest(routingContext);
-        });
+        SparqlEndpoint.ValidationException thrown = assertThrows(SparqlEndpoint.ValidationException.class, () ->
+                endpoint.validateRequest(routingContext));
 
         assertThat("should have code 400", thrown.getCode(), equalTo(400));
         assertThat("should say Unsupported", thrown.getMessage(), containsString("missing query"));

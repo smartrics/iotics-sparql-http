@@ -23,9 +23,9 @@ public class Identities {
     public Identities(String host, String userKey, String userSeed, String agentKey, String agentSeed) {
         String resolver = ResolverFinder.findResolver(host);
         SdkApi api = new JnaSdkApiInitialiser(new OsLibraryPathResolver() {}).get();
-        simpleIdentity = new SimpleIdentityImpl(api, resolver, agentSeed);
+        simpleIdentity = new SimpleIdentityImpl(api, resolver, userSeed, agentSeed);
         agentIdentity = simpleIdentity.CreateAgentIdentity(agentKey, "#app1");
-        userIdentity = simpleIdentity.CreateUserIdentity(agentKey, "#app1");
+        userIdentity = simpleIdentity.CreateUserIdentity(userKey, "#app1");
         simpleIdentity.UserDelegatesAuthenticationToAgent(agentIdentity, userIdentity, "#del1");
 
         CacheLoader<String, Identity> loader = newCacheLoader();
