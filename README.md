@@ -43,8 +43,26 @@ RESOLVER_URL=<the resolver used to manage identities (find it at https://{HOST_D
 AGENT_SEED=<a valid identity seed>
 USER_SEED=<a valid identity seed>
 USER_KEY=<a valid key>
+TOKEN_DURATION=<ISO 8601 period string>
 ```
 
+Token duration follows the ISO 8601 spec as described [here](https://docs.oracle.com/javase/8/docs/api/java/time/Duration.html#parse-java.lang.CharSequence-). For example:
+
+    "PT20.345S" -- parses as "20.345 seconds"
+    "PT15M"     -- parses as "15 minutes" (where a minute is 60 seconds)
+    "PT10H"     -- parses as "10 hours" (where an hour is 3600 seconds)
+    "P2D"       -- parses as "2 days" (where a day is 24 hours or 86400 seconds)
+    "P2DT3H4M"  -- parses as "2 days, 3 hours and 4 minutes"
+
+## Build and run docker image
+
+```shell
+docker build -t iotics-sparql-http:1.0 .
+```
+
+```shell
+docker run -d -p 8080:8080 --env-file .env iotics-sparql-http:1.0
+```
 
 ## Use
 
@@ -59,11 +77,23 @@ The following endpoints are supported for GET and POST
 | `/sparql/local` | for requests scoped to the local IOTICSpace only | 
 | `/sparql`       | for requests scoped to the network               | 
 
+| Health endpoint | description                                              |
+|-----------------|----------------------------------------------------------|
+| `/health`       | accepts only GET requests, healthy if response is 200 OK | 
+
 ### Required headers
 
 ```properties
-Authorization: Bearer <token>
 Accept: application/sparql-results+json
+```
+### Optional header
+
+```properties
+Authorization: Bearer <token>
+```
+or
+```properties
+Authorization: Bearer <userKey:userSeed>
 ```
 
 ### Required headers for a SPARQL via POST
