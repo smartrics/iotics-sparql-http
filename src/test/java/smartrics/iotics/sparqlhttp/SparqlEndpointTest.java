@@ -29,7 +29,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(VertxExtension.class)
 class SparqlEndpointTest {
-    private final String bearer = "user:seed";
+    private final String bearer = "userKey1:549044b1b0130d1e9450a09c97535facaa321ad5f4c30afe1a9f2ca025a192db";
     private final String token = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJodHRwczovL2RpZC5zdGcuaW90aWNzLmNvbSIsImV4cCI6MjAyNjMzNzc2NCwiaWF0IjoxNzEwOTc3NzM0LCJpc3MiOiJkaWQ6aW90aWNzOmlvdFlzcWpnUUV5emRBZm8zQU5OV1YyeHh6VURGdVR2eWRDViNhZ2VudDEiLCJzdWIiOiJkaWQ6aW90aWNzOmlvdExVbXdIREZ0cGZMRVdUZUdBUXd5cDRZNUZvU1R0NGpiZyJ9.CnZHkMoKnmr7z2xAHMiHfQiqfrzLmNpsk1Mt_CAH3h98o_mhH1HkB-8E5ieTIXP2jmzmE0U0mCcBNmWMSMaRtQ";
 
     static Stream<String> authorizationHeaderProvider() {
@@ -111,7 +111,7 @@ class SparqlEndpointTest {
         RoutingContext routingContext = mock(RoutingContext.class, RETURNS_DEEP_STUBS);
         HttpServerResponse response = mock(HttpServerResponse.class);
         when(routingContext.response()).thenReturn(response);
-        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + bearer);
+        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + token);
         when(routingContext.request().getHeader("Accept")).thenReturn(acceptValue);
 
 
@@ -136,7 +136,7 @@ class SparqlEndpointTest {
         RoutingContext routingContext = mock(RoutingContext.class, RETURNS_DEEP_STUBS);
         HttpServerResponse response = mock(HttpServerResponse.class);
         when(routingContext.response()).thenReturn(response);
-        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + bearer);
+        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + token);
         when(routingContext.request().getHeader("Accept")).thenReturn(value);
 
         SparqlEndpoint endpoint = new SparqlEndpoint();
@@ -153,7 +153,7 @@ class SparqlEndpointTest {
         RoutingContext routingContext = mock(RoutingContext.class, RETURNS_DEEP_STUBS);
         HttpServerResponse response = mock(HttpServerResponse.class);
         when(routingContext.response()).thenReturn(response);
-        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + bearer);
+        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + token);
         when(routingContext.queryParam(value)).thenReturn(List.of("someValue"));
 
         when(response.setStatusCode(anyInt())).thenReturn(response);
