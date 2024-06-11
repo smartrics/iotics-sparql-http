@@ -20,8 +20,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -50,6 +49,18 @@ public class SparqlEndpointIT {
                 assertTrue(vars.contains("subject"), "should contain subject");
                 assertTrue(vars.contains("predicate"), "should contain predicate");
                 assertTrue(vars.contains("object"), "should contain object");
+                testContext.completeNow(); // Mark the test as passed
+            });
+        });
+    }
+
+    private static void verifyValidHealthResponse(VertxTestContext testContext, HttpClientResponse response) {
+        assertEquals(200, response.statusCode());
+        response.bodyHandler(body -> {
+            JsonObject jsonObject = body.toJsonObject(); // Convert the body to a String
+            testContext.verify(() -> {
+                String status = jsonObject.getString("status");
+                assertThat(status, is("OK"));
                 testContext.completeNow(); // Mark the test as passed
             });
         });
@@ -105,6 +116,19 @@ public class SparqlEndpointIT {
                 })
                 .onSuccess(response -> testContext.verify(() ->
                         verifyValidResponse(testContext, response))).onFailure(testContext::failNow);
+        testContext.succeedingThenComplete();
+    }
+
+    @Test
+    public void testHealth(Vertx vertx, VertxTestContext testContext) {
+        vertx.createHttpClient()
+                .request(HttpMethod.GET, this.hostPort, "localhost", "/health")
+                .compose(request -> {
+                    addCommonHeaders(request);
+                    return request.send();
+                })
+                .onSuccess(response -> testContext.verify(() ->
+                        verifyValidHealthResponse(testContext, response))).onFailure(testContext::failNow);
         testContext.succeedingThenComplete();
     }
 

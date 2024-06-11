@@ -51,25 +51,33 @@ public class SparqlEndpoint extends AbstractVerticle {
         Launcher.executeCommand("run", SparqlEndpoint.class.getName());
     }
 
-    public void start() {
-        String port = Optional.ofNullable(System.getenv("PORT")).orElse("8080");
-
+    public Router createRouter() {
         Router router = Router.router(vertx);
 
-        router.route().handler(BodyHandler.create()).handler(this::validateRequest);
+        // Handle /health route separately
         router.get("/health").handler(this::handleHealth);
+
+        // Apply the BodyHandler and validateRequest handler to the /sparql routes
+        router.route("/sparql*").handler(BodyHandler.create()).handler(this::validateRequest);
+
+        // Define the /sparql routes
         router.get("/sparql/local").handler(ctx -> this.handleGet(ctx, Scope.LOCAL));
         router.get("/sparql").handler(ctx -> this.handleGet(ctx, Scope.GLOBAL));
         router.post("/sparql/local").handler(ctx -> this.handlePost(ctx, Scope.LOCAL));
         router.post("/sparql").handler(ctx -> this.handlePost(ctx, Scope.GLOBAL));
 
+        return router;
+    }
+
+    public void start() {
+        String port = Optional.ofNullable(System.getenv("PORT")).orElse("8080");
+        Router router = createRouter();
         vertx.createHttpServer().requestHandler(router).listen(Integer.parseInt(port));
     }
 
     private void handleHealth(RoutingContext ctx) {
         ctx.response().setStatusCode(200);
-        ctx.response().send("{ 'status': 'OK' }");
-        ctx.response().end();
+        ctx.response().end("{ \"status\" : \"OK\" }");
     }
 
     private void handleGet(RoutingContext ctx, Scope scope) {

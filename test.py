@@ -12,7 +12,7 @@ SELECT * WHERE {
 encoded_query = urllib.parse.quote(sparql_query)
 
 # Define the URL with the encoded query
-url = f"http://localhost:8080/local/sparql?query={encoded_query}"
+url = f"http://localhost:8080/sparql/local?query={encoded_query}"
 
 # Define the headers
 headers = {
