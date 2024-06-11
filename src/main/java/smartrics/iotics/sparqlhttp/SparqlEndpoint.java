@@ -8,22 +8,24 @@ import io.vertx.core.Launcher;
 import io.vertx.core.MultiMap;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
+import io.vertx.core.impl.logging.Logger;
+import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import org.jetbrains.annotations.NotNull;
 
 import java.net.URLDecoder;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 import static smartrics.iotics.sparqlhttp.ContentTypesMap.mimeFor;
 
 public class SparqlEndpoint extends AbstractVerticle {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SparqlEndpoint.class);
+
     private final Identities identities;
     private final Duration defaultTokenDuration;
     private final Boolean enableAnonymous;
@@ -42,8 +44,8 @@ public class SparqlEndpoint extends AbstractVerticle {
         enableAnonymous = Boolean.valueOf(configManager.getValue(ConfigManager.ConfigKey.ENABLE_ANON));
 
         Map<String, String> printableConfig = configManager.getPrintableConfig();
-        System.out.println("Configuration: ");
-        printableConfig.forEach((key, value) -> System.out.println("  " + key + ": " + value));
+        LOGGER.info("Configuration: ");
+        printableConfig.forEach((key, value) -> LOGGER.info("  " + key + ": " + value));
     }
 
 
@@ -53,6 +55,8 @@ public class SparqlEndpoint extends AbstractVerticle {
 
     public Router createRouter() {
         Router router = Router.router(vertx);
+
+        router.route().handler(this::logRequestAndResponse);
 
         // Handle /health route separately
         router.get("/health").handler(this::handleHealth);
@@ -69,9 +73,32 @@ public class SparqlEndpoint extends AbstractVerticle {
         return router;
     }
 
+    private void logRequestAndResponse(RoutingContext ctx) {
+        String remoteAddress = ctx.request().remoteAddress().toString();
+        String uri = ctx.request().uri();
+        String userAgent = ctx.request().getHeader("User-Agent");
+        String method = ctx.request().method().toString();
+        String id = generateShortUUID();
+        LOGGER.debug("Request [id=" + id + "][URI=" + uri + "][method=" + method + "][from=" + remoteAddress + "][User-Agent=" + userAgent + "]");
+        ctx.addBodyEndHandler(v -> {
+            int statusCode = ctx.response().getStatusCode();
+            LOGGER.debug("Response [id=" + id + "][statusCode=" + statusCode + "]");
+        });
+        ctx.next();
+    }
+
+    private static String generateShortUUID() {
+        UUID uuid = UUID.randomUUID();
+        ByteBuffer byteBuffer = ByteBuffer.wrap(new byte[16]);
+        byteBuffer.putLong(uuid.getMostSignificantBits());
+        byteBuffer.putLong(uuid.getLeastSignificantBits());
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(byteBuffer.array());
+    }
+
     public void start() {
         String port = Optional.ofNullable(System.getenv("PORT")).orElse("8080");
         Router router = createRouter();
+        LOGGER.info("Starting on port " + port);
         vertx.createHttpServer().requestHandler(router).listen(Integer.parseInt(port));
     }
 
@@ -272,5 +299,4 @@ public class SparqlEndpoint extends AbstractVerticle {
     }
 
     record TokenPair(String tokenString, SimpleToken simpleToken){}
-
 }

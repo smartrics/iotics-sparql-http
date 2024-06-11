@@ -4,6 +4,8 @@ import com.google.protobuf.ByteString;
 import com.iotics.api.*;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import io.vertx.core.impl.logging.Logger;
+import io.vertx.core.impl.logging.LoggerFactory;
 import org.jetbrains.annotations.NotNull;
 import smartrics.iotics.host.Builders;
 import smartrics.iotics.identity.Identity;
@@ -14,6 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class SparqlRunner implements QueryRunner {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SparqlRunner.class);
 
     private final MetaAPIGrpc.MetaAPIStub metaAPIStub;
     private final Identity agentIdentity;
@@ -32,14 +35,16 @@ public class SparqlRunner implements QueryRunner {
     public void run(String query) {
         StreamObserver<SparqlQueryResponse> responseObserver = newResponseObserver();
         ByteString value = ByteString.copyFromUtf8(query);
-        metaAPIStub.sparqlQuery(SparqlQueryRequest.newBuilder()
+        SparqlQueryRequest sparqlQueryRequest = SparqlQueryRequest.newBuilder()
                 .setHeaders(Builders.newHeadersBuilder(agentIdentity))
                 .setScope(scope)
                 .setPayload(SparqlQueryRequest.Payload.newBuilder()
                         .setQuery(value)
                         .setResultContentType(resultContentType)
                         .build())
-                .build(), responseObserver);
+                .build();
+        LOGGER.info("SPARQL query: " + sparqlQueryRequest);
+        metaAPIStub.sparqlQuery(sparqlQueryRequest, responseObserver);
     }
 
     @NotNull
