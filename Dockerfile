@@ -9,9 +9,6 @@ COPY ./pom.xml ./pom.xml
 COPY ./lib ./lib
 COPY ./src ./src
 
-# Install CA certificates
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
-
 # Build the Java application
 RUN mvn clean package -DskipTests
 
@@ -21,7 +18,7 @@ ARG GO_REPO_URL=https://github.com/Iotic-Labs/iotics-identity-go.git
 WORKDIR /go/src
 
 # Install necessary packages for building Go project and CA certificates
-RUN apt-get update && apt-get install -y --no-install-recommends git make gcc libc6-dev ca-certificates
+RUN apt-get update && apt-get install -y --no-install-recommends git make gcc libc6-dev
 
 # Clone the Go repository
 RUN git clone ${GO_REPO_URL} .
