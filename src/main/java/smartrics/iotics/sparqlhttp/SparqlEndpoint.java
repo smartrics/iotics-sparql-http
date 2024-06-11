@@ -269,7 +269,7 @@ public class SparqlEndpoint extends AbstractVerticle {
                     throw new ValidationException(401, ErrorMessage.toJson("Access Denied: unable to process Bearer token provided"));
                 }
             } else {
-                throw new ValidationException(401, ErrorMessage.toJson("Access Denied: invalid Bearer token provided"));
+                token = bearer;
             }
         }
         SimpleToken simpleToken;

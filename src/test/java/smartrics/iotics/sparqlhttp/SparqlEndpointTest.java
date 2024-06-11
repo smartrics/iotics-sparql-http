@@ -64,7 +64,7 @@ class SparqlEndpointTest {
         when(response.setStatusMessage(anyString())).thenReturn(response);
 
         // Instantiate your verticle or the part of it responsible for handling the request
-        SparqlEndpoint endpoint = new SparqlEndpoint();
+        SparqlEndpoint endpoint = new SparqlEndpoint(Map.of(SparqlEndpoint.KEY_ENABLE_ANON, "false"));
 
         // Since your logic might be inside handlers, you need to simulate calling the specific handler
         // For example, let's assume you're testing the handlePost method for a global scope
@@ -196,7 +196,7 @@ class SparqlEndpointTest {
     }
 
     @Test
-    void testSettingOfAttributes(VertxTestContext testContext) {
+    void testSettingOfAttributesWithBearer(VertxTestContext testContext) {
         RoutingContext routingContext = mock(RoutingContext.class, RETURNS_DEEP_STUBS);
         HttpServerResponse response = mock(HttpServerResponse.class);
         when(routingContext.response()).thenReturn(response);
@@ -215,6 +215,26 @@ class SparqlEndpointTest {
         verify(routingContext).put("agentDID", st.agentDID());
         verify(routingContext).put("agentId", st.agentId());
         verify(routingContext).put("acceptedResponseType", SparqlResultType.SPARQL_JSON);
+
+        testContext.completeNow();
+    }
+
+
+    @Test
+    void testSettingOfAttributesWithToken(VertxTestContext testContext) {
+        RoutingContext routingContext = mock(RoutingContext.class, RETURNS_DEEP_STUBS);
+        HttpServerResponse response = mock(HttpServerResponse.class);
+        when(routingContext.response()).thenReturn(response);
+        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + token);
+        when(routingContext.request().getHeader("Accept")).thenReturn("*/*");
+
+        SparqlEndpoint endpoint = new SparqlEndpoint();
+        endpoint.validateRequest(routingContext);
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+
+        verify(routingContext).put(eq("token"), captor.capture());
+        verify(routingContext).put("token", token);
 
         testContext.completeNow();
     }
