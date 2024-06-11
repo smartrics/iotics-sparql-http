@@ -12,11 +12,11 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 import org.jetbrains.annotations.NotNull;
-import smartrics.iotics.identity.Identity;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -26,18 +26,35 @@ import static smartrics.iotics.sparqlhttp.ContentTypesMap.mimeFor;
 
 public class SparqlEndpoint extends AbstractVerticle {
 
-    private static final String KEY_HOST_DNS = "HOST_DNS";
-    private static final String KEY_AGENT_SEED = "AGENT_SEED";
-    private static final String KEY_AGENT_KEY = "AGENT_KEY";
-    private static final String KEY_PORT = "PORT";
+    public static final String KEY_HOST_DNS = "HOST_DNS";
+    public static final String KEY_AGENT_SEED = "AGENT_SEED";
+    public static final String KEY_AGENT_KEY = "AGENT_KEY";
+    public static final String KEY_USER_SEED = "USER_SEED";
+    public static final String KEY_USER_KEY = "USER_KEY";
+    public static final String KEY_ENABLE_ANON = "ENABLE_ANON";
+    public static final String KEY_PORT = "PORT";
+    public static final String KEY_TOKEN_DURATION = "TOKEN_DURATION";
     private static final String DEFAULT_PORT = "8080";
+    private static final String DEFAULT_TOKEN_DURATION = "PT60S";
+    private static final String DEFAULT_ENABLE_ANON = "false";
 
     private static final Map<String, String> ENV = new ConcurrentHashMap<>();
     private final Identities identities;
+    private final Duration defaultTokenDuration;
+    private final Boolean enableAnonymous;
 
     public SparqlEndpoint() {
+        this(HashMap.newHashMap(0));
+    }
+
+    public SparqlEndpoint(Map<String, String> overrides) {
         setupEnv();
-        identities = new Identities(ENV.get(KEY_HOST_DNS), ENV.get(KEY_AGENT_KEY), ENV.get(KEY_AGENT_SEED));
+        ENV.putAll(overrides);
+        identities = new Identities(ENV.get(KEY_HOST_DNS),
+                ENV.get(KEY_USER_KEY), ENV.get(KEY_USER_SEED),
+                ENV.get(KEY_AGENT_KEY), ENV.get(KEY_AGENT_SEED));
+        defaultTokenDuration = Duration.parse(Optional.ofNullable(ENV.get(KEY_TOKEN_DURATION)).orElse(DEFAULT_TOKEN_DURATION));
+        enableAnonymous = Boolean.valueOf(Optional.ofNullable(ENV.get(KEY_ENABLE_ANON)).orElse(DEFAULT_ENABLE_ANON));
     }
 
 
@@ -49,7 +66,10 @@ public class SparqlEndpoint extends AbstractVerticle {
         ENV.put(KEY_HOST_DNS, load(KEY_HOST_DNS));
         ENV.put(KEY_AGENT_SEED, load(KEY_AGENT_SEED));
         ENV.put(KEY_AGENT_KEY, load(KEY_AGENT_KEY));
+        ENV.put(KEY_USER_SEED, load(KEY_USER_SEED));
+        ENV.put(KEY_USER_KEY, load(KEY_USER_KEY));
         ENV.put(KEY_PORT, load(KEY_PORT));
+        ENV.put(KEY_TOKEN_DURATION, load(KEY_TOKEN_DURATION));
         ENV.putIfAbsent(KEY_PORT, DEFAULT_PORT);
 
         System.out.println("Configuration: ");
@@ -60,8 +80,14 @@ public class SparqlEndpoint extends AbstractVerticle {
         }
         System.out.println(" agent seed: " + Optional.ofNullable(value).orElse("<not configured>"));
         System.out.println(" agent key: " + Optional.ofNullable(ENV.get(KEY_AGENT_KEY)).orElse("<not configured>"));
-        System.out.println(" port: " + Optional.ofNullable(ENV.get(KEY_PORT)).orElse("<not configured>"));
 
+        value = ENV.get(KEY_USER_SEED);
+        if(value != null) {
+            value = "<secret configured>";
+        }
+        System.out.println(" user seed: " + Optional.ofNullable(value).orElse("<not configured>"));
+        System.out.println(" user key: " + Optional.ofNullable(ENV.get(KEY_USER_KEY)).orElse("<not configured>"));
+        System.out.println(" port: " + Optional.ofNullable(ENV.get(KEY_PORT)).orElse("<not configured>"));
     }
 
     public static String load(String key) {
@@ -140,14 +166,12 @@ public class SparqlEndpoint extends AbstractVerticle {
             ctx.response().headers().add("Access-Control-Allow-Origin", "*");
             StreamObserverToStringAdapter outputStream = new StreamObserverToStringAdapter();
 
-            String agentDID = ctx.get("agentDID");
-            Identity agentIdentity = new Identity("someKey", "nameName", agentDID);
             QueryRunner runner = SparqlRunner.SparqlRunnerBuilder.newBuilder()
                     .withScope(scope)
                     .withSparqlResultType(type)
                     .withMetaAPIStub(api)
                     .withOutputStream(outputStream)
-                    .withAgentIdentity(agentIdentity)
+                    .withAgentIdentity(identities.agentIdentity())
                     .build();
             runner.run(query);
 
@@ -230,19 +254,23 @@ public class SparqlEndpoint extends AbstractVerticle {
     private @NotNull TokenPair makeOrGetValidToken(HttpServerRequest request) {
         String authHeader = request.getHeader("Authorization");
         String token;
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new ValidationException(401, ErrorMessage.toJson("Access Denied: no Bearer token provided"));
-        }
-        String bearer = authHeader.substring("Bearer ".length());
-        if(bearer.indexOf(":")> 0) {
-            try {
-                token = identities.newToken(bearer, Duration.ofSeconds(60));
-            } catch (RuntimeException e) {
-                e.printStackTrace();
-                throw new ValidationException(401, ErrorMessage.toJson("Access Denied: unable to process Bearer token provided"));
-            }
+        if(authHeader == null && enableAnonymous) {
+            token = identities.newToken(defaultTokenDuration);
         } else {
-            throw new ValidationException(401, ErrorMessage.toJson("Access Denied: invalid Bearer token provided"));
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                throw new ValidationException(401, ErrorMessage.toJson("Access Denied: no Bearer token provided"));
+            }
+            String bearer = authHeader.substring("Bearer ".length());
+            if(bearer.indexOf(":")> 0) {
+                try {
+                    token = identities.newToken(bearer, defaultTokenDuration);
+                } catch (RuntimeException e) {
+                    e.printStackTrace();
+                    throw new ValidationException(401, ErrorMessage.toJson("Access Denied: unable to process Bearer token provided"));
+                }
+            } else {
+                throw new ValidationException(401, ErrorMessage.toJson("Access Denied: invalid Bearer token provided"));
+            }
         }
         SimpleToken simpleToken;
         try {

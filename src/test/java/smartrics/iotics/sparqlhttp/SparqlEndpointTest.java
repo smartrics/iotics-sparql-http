@@ -14,11 +14,11 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
-import smartrics.iotics.identity.experimental.JWT;
 import smartrics.iotics.sparqlhttp.integration.EnvFileLoader;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -75,6 +75,31 @@ class SparqlEndpointTest {
         // Verify that the response is set to 401
         assertThat("should have code 401", thrown.getCode(), equalTo(401));
         assertThat("should say Access Denied", thrown.getMessage(), containsString("Access Denied"));
+
+        testContext.completeNow();
+    }
+
+    @Test
+    void testMakeValidTokenIfAuthNullAndAnonymousEnabled(VertxTestContext testContext) {
+        RoutingContext routingContext = mock(RoutingContext.class, RETURNS_DEEP_STUBS);
+        HttpServerResponse response = mock(HttpServerResponse.class);
+        when(routingContext.response()).thenReturn(response);
+        when(routingContext.request().getHeader("Authorization")).thenReturn(null);
+        when(routingContext.request().getHeader("Accept")).thenReturn("*/*");
+
+        SparqlEndpoint endpoint = new SparqlEndpoint(Map.of(SparqlEndpoint.KEY_ENABLE_ANON, "true"));
+
+        endpoint.validateRequest(routingContext);
+
+        ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+
+        verify(routingContext).put(eq("token"), captor.capture());
+        String tokenString = captor.getValue();
+        SimpleToken st = SimpleToken.parse(tokenString);
+        verify(routingContext).put("userDID", st.userDID());
+        verify(routingContext).put("agentDID", st.agentDID());
+        verify(routingContext).put("agentId", st.agentId());
+        verify(routingContext).put("acceptedResponseType", SparqlResultType.SPARQL_JSON);
 
         testContext.completeNow();
     }

@@ -15,25 +15,35 @@ import java.util.concurrent.ExecutionException;
 
 public class Identities {
 
-    private final String resolver;
     private final Identity agentIdentity;
+    private final Identity userIdentity;
     private final SimpleIdentityImpl simpleIdentity;
     private final LoadingCache<String, Identity> cache;
 
-    public Identities(String host, String agentKey, String agentSeed) {
-        this.resolver = ResolverFinder.findResolver(host);
+    public Identities(String host, String userKey, String userSeed, String agentKey, String agentSeed) {
+        String resolver = ResolverFinder.findResolver(host);
         SdkApi api = new JnaSdkApiInitialiser(new OsLibraryPathResolver() {}).get();
         simpleIdentity = new SimpleIdentityImpl(api, resolver, agentSeed);
         agentIdentity = simpleIdentity.CreateAgentIdentity(agentKey, "#app1");
+        userIdentity = simpleIdentity.CreateUserIdentity(agentKey, "#app1");
+        simpleIdentity.UserDelegatesAuthenticationToAgent(agentIdentity, userIdentity, "#del1");
 
         CacheLoader<String, Identity> loader = newCacheLoader();
         cache = CacheBuilder.newBuilder().build(loader);
+    }
+
+    public Identity agentIdentity() {
+        return agentIdentity;
     }
 
     private Identity makeUserIdentity(String userKeyId, String userSeed) {
         Identity ui = simpleIdentity.CreateUserIdentity(userKeyId, "#user1");
         simpleIdentity.UserDelegatesAuthenticationToAgent(agentIdentity, ui, "#del1");
         return ui;
+    }
+
+    public String newToken(Duration duration) {
+        return simpleIdentity.CreateAgentAuthToken(agentIdentity, userIdentity.did(), duration);
     }
 
     public String newToken(String bearer, Duration duration) {
