@@ -2,11 +2,9 @@ import requests
 import urllib.parse
 
 # Define the SPARQL query
-sparql_query = """
-SELECT * WHERE {
-  ?s ?p ?o
-} LIMIT 10
-"""
+sparql_query = """SELECT ?subject ?predicate ?object
+WHERE {?subject ?predicate ?object}
+LIMIT 10"""
 
 # Encode the SPARQL query
 encoded_query = urllib.parse.quote(sparql_query)
