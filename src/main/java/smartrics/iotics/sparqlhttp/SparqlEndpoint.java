@@ -167,6 +167,7 @@ public class SparqlEndpoint extends AbstractVerticle {
             ctx.response().setStatusCode(200);
             ctx.response().send(string);
         } catch (Exception e) {
+            LOGGER.warn("exception when handling request", e);
             String message = e.getMessage();
             if (e.getCause() != null) {
                 message = message + ": " + e.getCause().getMessage();
