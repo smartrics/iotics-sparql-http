@@ -18,7 +18,6 @@ import smartrics.iotics.sparqlhttp.SparqlEndpoint;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 
 import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -27,7 +26,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(VertxExtension.class)
 public class SparqlEndpointIT {
-    private String hostDNS;
     private int hostPort;
     private String bearer;
 
@@ -69,9 +67,11 @@ public class SparqlEndpointIT {
     @BeforeEach
     public void setup(Vertx vertx, VertxTestContext testContext) {
         this.bearer = System.getProperty("USER_KEY") + ":" + System.getProperty("USER_SEED");
-        this.hostDNS = System.getProperty("HOST_DNS");
         this.hostPort = Integer.parseInt(System.getProperty("PORT"));
-        vertx.deployVerticle(new SparqlEndpoint(), testContext.succeedingThenComplete());
+        String skipDeploy = System.getProperty("SKIP_DEPLOY");
+        if(!Boolean.parseBoolean(skipDeploy)) {
+            vertx.deployVerticle(new SparqlEndpoint(), testContext.succeedingThenComplete());
+        }
     }
 
     @Test
