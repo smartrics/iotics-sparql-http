@@ -35,6 +35,10 @@ RUN go build -buildmode=c-shared -o lib/lib-iotics-id-sdk.so ./ffi_wrapper.go
 FROM ubuntu:${UBUNTU_VERSION} as packager
 RUN apt-get update && apt-get install -y --no-install-recommends openjdk-21-jdk-headless binutils curl ca-certificates && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Update CA certificates
+RUN update-ca-certificates
+
 ENV JAVA_MINIMAL="/opt/java-minimal"
 
 # Build minimal JRE
@@ -43,7 +47,7 @@ RUN $JAVA_HOME/bin/jlink \
     --add-modules \
       java.base,jdk.unsupported,java.logging,java.sql,java.desktop,java.scripting,jdk.crypto.cryptoki,java.management,java.naming \
     --compress 2 --strip-debug --no-header-files --no-man-pages \
-    --release-info="add:IMPLEMENTOR=iotic:IMPLEMENTOR_VERSION=iotic_JRE" \
+    --release-info="add:IMPLEMENTOR=iotics:IMPLEMENTOR_VERSION=iotics_JRE" \
     --output "$JAVA_MINIMAL"
 
 # ------------------------ App Server Stage ------------------------
@@ -65,7 +69,8 @@ COPY --from=packager /var/lib/dpkg/info/ca-certificates* /var/lib/dpkg/info/
 # Copy the minimal JRE from the packager stage
 COPY --from=packager "$JAVA_HOME" "$JAVA_HOME"
 # Copy the built Java application JAR
-COPY --from=builder /build/target/smartrics.iotics.iotics-sparql-http-SHADED.jar ./app.jar
+COPY --from=builder /build/target/iotics-sparql-http-*.jar ./app.jar
+COPY --from=builder /build/target/lib ./lib
 # Copy the built .so file from the Go build stage
 COPY --from=gobuilder /go/src/ffi/lib/lib-iotics-id-sdk.so ./lib/
 # Copy the entrypoint script
@@ -76,6 +81,8 @@ RUN chmod +x ./docker-entrypoint.sh
 
 # Set the java.library.path to include the directory with the .so file
 ENV LD_LIBRARY_PATH=/app/lib
+# Set the classpath to include the JAR file and dependencies
+ENV CLASSPATH=/app/app.jar:/app/lib/*
 
 # Health check to ensure the service is running
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 CMD curl -f http://${httpHost}:${httpPort}/health || exit 1
