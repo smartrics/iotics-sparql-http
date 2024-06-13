@@ -56,8 +56,10 @@ Token duration follows the ISO 8601 spec as described [here](https://docs.oracle
 
 ## Build and run docker image
 
+https://hub.docker.com/repository/docker/smartrics/iotics-sparql-http/general
+
 ```shell
-docker build -t iotics-sparql-http:1.0 .
+docker build -t smartrics/iotics-sparql-http:0.1 .
 ```
 
 ```shell
