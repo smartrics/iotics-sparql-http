@@ -227,15 +227,14 @@ public class SparqlEndpoint extends AbstractVerticle {
 
     private void handlePost(RoutingContext ctx, Scope scope) {
         try {
-            String query;
+            String query = ctx.body().asString();
             String token = ctx.get("token");
             String ct = ctx.request().getHeader("Content-Type");
+            ct = ct.split(";")[0].trim();
             if ("application/x-www-form-urlencoded".equals(ct)) {
                 MultiMap formAttributes = ctx.request().formAttributes();
-                // Example: Get a form attribute named "exampleField"
-                query = formAttributes.get("query");
-            } else {
-                query = ctx.body().asString();
+                // TODO: we should check the charset in the content type if available
+                query = URLDecoder.decode(query, StandardCharsets.UTF_8);
             }
             if (query != null) {
                 handle(scope, ctx, token, query);
