@@ -6,6 +6,7 @@ import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +26,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(VertxExtension.class)
@@ -63,18 +65,11 @@ class SparqlEndpointTest {
         when(response.setStatusCode(anyInt())).thenReturn(response);
         when(response.setStatusMessage(anyString())).thenReturn(response);
 
-        // Instantiate your verticle or the part of it responsible for handling the request
-
         SparqlEndpoint endpoint = new SparqlEndpoint(Map.of(ConfigManager.ConfigKey.ENABLE_ANON, "false"));
 
-        // Since your logic might be inside handlers, you need to simulate calling the specific handler
-        // For example, let's assume you're testing the handlePost method for a global scope
-        SparqlEndpoint.ValidationException thrown = assertThrows(SparqlEndpoint.ValidationException.class, () ->
-                endpoint.validateRequest(routingContext));
-
-        // Verify that the response is set to 401
-        assertThat("should have code 401", thrown.getCode(), equalTo(401));
-        assertThat("should say Access Denied", thrown.getMessage(), containsString("Access Denied"));
+        endpoint.validateRequest(routingContext);
+        verify(response).setStatusCode(401);
+        verify(response).setStatusMessage(contains("Access Denied"));
 
         testContext.completeNow();
     }
@@ -121,11 +116,9 @@ class SparqlEndpointTest {
 
         SparqlEndpoint endpoint = new SparqlEndpoint();
 
-        SparqlEndpoint.ValidationException thrown = assertThrows(SparqlEndpoint.ValidationException.class, () ->
-                endpoint.validateRequest(routingContext));
-
-        assertThat("should have code 400", thrown.getCode(), equalTo(400));
-        assertThat("should say Unsupported", thrown.getMessage(), containsString(err));
+        endpoint.validateRequest(routingContext);
+        verify(response).setStatusCode(400);
+        verify(response).setStatusMessage(contains(err));
 
         testContext.completeNow();
 
@@ -162,18 +155,16 @@ class SparqlEndpointTest {
 
         SparqlEndpoint endpoint = new SparqlEndpoint();
 
-        SparqlEndpoint.ValidationException thrown = assertThrows(SparqlEndpoint.ValidationException.class, () ->
-                endpoint.validateRequest(routingContext));
-
-        assertThat("should have code 400", thrown.getCode(), equalTo(400));
-        assertThat("should say Unsupported", thrown.getMessage(), containsString("RDF datasets not allowed"));
+        endpoint.validateRequest(routingContext);
+        verify(response).setStatusCode(400);
+        verify(response).setStatusMessage(contains("RDF datasets not allowed"));
 
         testContext.completeNow();
 
     }
 
     @Test
-    void testMissingQueryInGETRequest(VertxTestContext testContext) {
+    void testNullQueryInGETRequestIsServiceDescription(@NotNull VertxTestContext testContext) {
         RoutingContext routingContext = mock(RoutingContext.class, RETURNS_DEEP_STUBS);
         HttpServerResponse response = mock(HttpServerResponse.class);
         when(routingContext.response()).thenReturn(response);
@@ -181,13 +172,35 @@ class SparqlEndpointTest {
         HttpMethod method = mock(HttpMethod.class);
         when(routingContext.request().method()).thenReturn(method);
         when(method.name()).thenReturn("GET");
+        when(routingContext.request().getParam("query")).thenReturn(null);
 
         SparqlEndpoint endpoint = new SparqlEndpoint();
-        SparqlEndpoint.ValidationException thrown = assertThrows(SparqlEndpoint.ValidationException.class, () ->
-                endpoint.validateRequest(routingContext));
+        boolean res = endpoint.validateRequest(routingContext);
 
-        assertThat("should have code 400", thrown.getCode(), equalTo(400));
-        assertThat("should say Unsupported", thrown.getMessage(), containsString("missing query"));
+        assertTrue(res);
+
+        testContext.completeNow();
+    }
+
+    @Test
+    void testEmptyQueryInGETRequestIsFailure(@NotNull VertxTestContext testContext) {
+        RoutingContext routingContext = mock(RoutingContext.class, RETURNS_DEEP_STUBS);
+        HttpServerResponse response = mock(HttpServerResponse.class);
+        when(routingContext.response()).thenReturn(response);
+        when(routingContext.request().getHeader("Authorization")).thenReturn("Bearer " + bearer);
+        HttpMethod method = mock(HttpMethod.class);
+        when(routingContext.request().method()).thenReturn(method);
+        when(method.name()).thenReturn("GET");
+        when(routingContext.request().getParam("query")).thenReturn("");
+        when(response.setStatusCode(anyInt())).thenReturn(response);
+        when(response.setStatusMessage(anyString())).thenReturn(response);
+
+        SparqlEndpoint endpoint = new SparqlEndpoint();
+
+        endpoint.validateRequest(routingContext);
+
+        verify(response).setStatusCode(400);
+        verify(response).setStatusMessage(contains("missing query"));
 
         testContext.completeNow();
     }

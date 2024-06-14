@@ -13,6 +13,7 @@ import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
+import org.apache.logging.log4j.util.Strings;
 import org.jetbrains.annotations.NotNull;
 
 import java.net.URLDecoder;
@@ -20,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static smartrics.iotics.sparqlhttp.ContentTypesMap.mimeFor;
 
@@ -53,6 +55,79 @@ public class SparqlEndpoint extends AbstractVerticle {
         Launcher.executeCommand("run", SparqlEndpoint.class.getName());
     }
 
+    private static String generateShortUUID() {
+        UUID uuid = UUID.randomUUID();
+        ByteBuffer byteBuffer = ByteBuffer.wrap(new byte[16]);
+        byteBuffer.putLong(uuid.getMostSignificantBits());
+        byteBuffer.putLong(uuid.getLeastSignificantBits());
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(byteBuffer.array());
+    }
+
+    private static void getValidQuery(HttpServerRequest request) {
+        String query = request.getParam("query");
+        if ("get".equalsIgnoreCase(request.method().name())) {
+            if (query == null) {
+                // service description
+                return;
+            } else if (query.isEmpty()) {
+                throw new ValidationException(400, ErrorMessage.toJson("missing query"));
+            }
+        }
+
+        if ("post".equalsIgnoreCase(request.method().name())) {
+            // Clients must set the content type header of the HTTP request to application/sparql-query
+            // spec par 2.1.3
+            String ct = request.getHeader("Content-Type");
+            if(Strings.isBlank(ct)) {
+                throw new ValidationException(400, ErrorMessage.toJson("missing content type"));
+            }
+            String mime = ct.split(";")[0].trim();
+            if (!"application/sparql-query".equals(mime) && !"application/x-www-form-urlencoded".equals(mime)) {
+                throw new ValidationException(400, ErrorMessage.toJson("invalid content type"));
+            }
+        }
+    }
+
+    private static void validateGraphName(RoutingContext ctx) {
+        // SPARQL-1.1 Par 2.1.4
+        List<String> def = ctx.queryParam("default-graph-uri");
+        List<String> named = ctx.queryParam("named-graph-uri");
+        if (def.size() > 0 || named.size() > 0) {
+            throw new ValidationException(400, ErrorMessage.toJson("RDF datasets not allowed"));
+        }
+    }
+
+    private static @NotNull SparqlResultType getValidAcceptedResultType(HttpServerRequest request) {
+        String accepted = request.getHeader("Accept");
+        if (accepted != null) {
+            // TODO: better support multiple Accept with quality flag
+            accepted = accepted.split(",")[0].trim();
+            accepted = accepted.split(";")[0];
+        }
+
+        SparqlResultType mappedAccepted = SparqlResultType.SPARQL_JSON;
+        if (accepted != null && !accepted.equals("*/*")) {
+            mappedAccepted = ContentTypesMap.get(accepted, SparqlResultType.UNRECOGNIZED);
+        }
+
+        if (mappedAccepted.equals(SparqlResultType.UNRECOGNIZED)) {
+            throw new ValidationException(400, ErrorMessage.toJson("Unsupported response mime type: " + accepted));
+        }
+        return mappedAccepted;
+    }
+
+    public static String tokenValidMessage(SimpleToken token) {
+
+        try {
+            if (token.isValid()) {
+                return null;
+            }
+            return "invalid token: missing issuer, subject or already expired";
+        } catch (Exception e) {
+            return "invalid token: " + e.getMessage();
+        }
+    }
+
     public Router createRouter() {
         Router router = Router.router(vertx);
 
@@ -69,30 +144,25 @@ public class SparqlEndpoint extends AbstractVerticle {
         router.get("/sparql").handler(ctx -> this.handleGet(ctx, Scope.GLOBAL));
         router.post("/sparql/local").handler(ctx -> this.handlePost(ctx, Scope.LOCAL));
         router.post("/sparql").handler(ctx -> this.handlePost(ctx, Scope.GLOBAL));
-
         return router;
     }
 
     private void logRequestAndResponse(RoutingContext ctx) {
         String remoteAddress = ctx.request().remoteAddress().toString();
         String uri = ctx.request().uri();
-        String userAgent = ctx.request().getHeader("User-Agent");
+        String absoluteUri = ctx.request().absoluteURI();
         String method = ctx.request().method().toString();
+        String headers = ctx.request().headers().entries().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(", "));
         String id = generateShortUUID();
-        LOGGER.debug("Request [id=" + id + "][URI=" + uri + "][method=" + method + "][from=" + remoteAddress + "][User-Agent=" + userAgent + "]");
+
+        LOGGER.debug("Request [id=" + id + "][URI=" + uri + "][method=" + method + "][from=" + remoteAddress + "][absoluteURI=" + absoluteUri + "][headers=" + headers + "]");
         ctx.addBodyEndHandler(v -> {
             int statusCode = ctx.response().getStatusCode();
-            LOGGER.debug("Response [id=" + id + "][statusCode=" + statusCode + "]");
+            String statusMessage = ctx.response().getStatusMessage();
+            String respHeaders = ctx.response().headers().entries().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining(", "));
+            LOGGER.debug("Response [id=" + id + "][statusCode=" + statusCode + "][statusMessage=" + statusMessage + "][headers=" + respHeaders + "]");
         });
         ctx.next();
-    }
-
-    private static String generateShortUUID() {
-        UUID uuid = UUID.randomUUID();
-        ByteBuffer byteBuffer = ByteBuffer.wrap(new byte[16]);
-        byteBuffer.putLong(uuid.getMostSignificantBits());
-        byteBuffer.putLong(uuid.getLeastSignificantBits());
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(byteBuffer.array());
     }
 
     public void start() {
@@ -110,12 +180,49 @@ public class SparqlEndpoint extends AbstractVerticle {
     private void handleGet(RoutingContext ctx, Scope scope) {
         try {
             String encodedQuery = ctx.request().getParam("query");
-            String query = URLDecoder.decode(encodedQuery, StandardCharsets.UTF_8);
-            String token = ctx.get("token");
-            handle(scope, ctx, token, query);
+            if (encodedQuery == null) {
+                // service description
+                ctx.response().setStatusCode(200);
+                ctx.response().send(serviceDescription(scope));
+            } else {
+                String query = URLDecoder.decode(encodedQuery, StandardCharsets.UTF_8);
+                String token = ctx.get("token");
+                handle(scope, ctx, token, query);
+            }
         } catch (ValidationException e) {
             sendError(e.getCode(), e.getMessage(), ctx.response());
         }
+    }
+
+    private String serviceDescription(Scope scope) {
+        String endpoint = "/sparql";
+        if (scope.equals(Scope.LOCAL)) {
+            endpoint += "/local";
+        }
+        return """
+                {
+                  "@context": {
+                    "sd": "http://www.w3.org/ns/sparql-service-description#",
+                    "void": "http://www.w3.org/ns/void#"
+                  },
+                  "@type": "sd:Service",
+                  "sd:endpoint": { "@id": "http://localhost/@@@@" },
+                  "void:sparqlEndpoint": { "@id": "http://localhost/@@@@" },
+                  "sd:name": "IOTICS SPARQL Endpoint",
+                  "sd:description": "This is a SPARQL endpoint for accessing IOTICSpace via HTTP",
+                  "sd:supportsQueryLanguage": { "@id": "sd:SPARQL11Query" },
+                  "sd:resultFormat": [
+                    { "sd:contentType": "application/sparql-results+xml" },
+                    { "sd:contentType": "application/sparql-results+json" },
+                    { "sd:contentType": "text/csv" },
+                    { "sd:contentType": "application/rdf+xml" },
+                    { "sd:contentType": "text/turtle" },
+                    { "sd:contentType": "application/x-turtle" },
+                    { "sd:contentType": "application/n-triples" }
+                  ],
+                  "void:triplestore": "IOTICSpace"
+                }
+                """.replaceAll("@@@@", endpoint);
     }
 
     private void handlePost(RoutingContext ctx, Scope scope) {
@@ -123,14 +230,14 @@ public class SparqlEndpoint extends AbstractVerticle {
             String query;
             String token = ctx.get("token");
             String ct = ctx.request().getHeader("Content-Type");
-            if("application/x-www-form-urlencoded".equals(ct)) {
+            if ("application/x-www-form-urlencoded".equals(ct)) {
                 MultiMap formAttributes = ctx.request().formAttributes();
                 // Example: Get a form attribute named "exampleField"
                 query = formAttributes.get("query");
             } else {
                 query = ctx.body().asString();
             }
-            if(query != null) {
+            if (query != null) {
                 handle(scope, ctx, token, query);
             } else {
                 ctx.response().setStatusCode(200);
@@ -166,6 +273,9 @@ public class SparqlEndpoint extends AbstractVerticle {
             String string = outputStream.getString();
             ctx.response().setStatusCode(200);
             ctx.response().send(string);
+        } catch (QueryExecutionException e) {
+            String cause = e.getCause().getMessage();
+            sendError(400, ErrorMessage.toJson(cause), ctx.response());
         } catch (Exception e) {
             LOGGER.warn("exception when handling request", e);
             String message = e.getMessage();
@@ -180,77 +290,38 @@ public class SparqlEndpoint extends AbstractVerticle {
         response.setStatusCode(statusCode).setStatusMessage(message).end();
     }
 
-    void validateRequest(RoutingContext ctx) throws ValidationException {
-        HttpServerRequest request = ctx.request();
-        validateGraphName(ctx);
-        getValidQuery(request);
-        TokenPair tokenPair = makeOrGetValidToken(request);
-        SparqlResultType mappedAccepted = getValidAcceptedResultType(request);
+    boolean validateRequest(RoutingContext ctx) throws ValidationException {
+        try {
+            HttpServerRequest request = ctx.request();
+            validateGraphName(ctx);
+            getValidQuery(request);
+            TokenPair tokenPair = makeOrGetValidToken(request);
+            SparqlResultType mappedAccepted = getValidAcceptedResultType(request);
 
-        ctx.put("token", tokenPair.tokenString);
-        ctx.put("acceptedResponseType", mappedAccepted);
-        ctx.put("agentDID", tokenPair.simpleToken.agentDID());
-        ctx.put("agentId", tokenPair.simpleToken.agentId());
-        ctx.put("userDID", tokenPair.simpleToken.userDID());
+            ctx.put("token", tokenPair.tokenString);
+            ctx.put("acceptedResponseType", mappedAccepted);
+            ctx.put("agentDID", tokenPair.simpleToken.agentDID());
+            ctx.put("agentId", tokenPair.simpleToken.agentId());
+            ctx.put("userDID", tokenPair.simpleToken.userDID());
 
-        ctx.next();
-    }
-
-    private static void getValidQuery(HttpServerRequest request) {
-        String query = request.getParam("query");
-        if (query == null && "get".equalsIgnoreCase(request.method().name())) {
-            throw new ValidationException(400, ErrorMessage.toJson("missing query"));
+            ctx.next();
+        } catch (ValidationException e) {
+            sendError(e.getCode(), e.getMessage(), ctx.response());
         }
-
-        if ("post".equalsIgnoreCase(request.method().name())) {
-            // Clients must set the content type header of the HTTP request to application/sparql-query
-            // spec par 2.1.3
-            String ct = request.getHeader("Content-Type");
-            if (!"application/sparql-query".equals(ct) && !"application/x-www-form-urlencoded".equals(ct)) {
-                throw new ValidationException(400, ErrorMessage.toJson("missing or invalid content type"));
-            }
-        }
-    }
-
-    private static void validateGraphName(RoutingContext ctx) {
-        // SPARQL-1.1 Par 2.1.4
-        List<String> def = ctx.queryParam("default-graph-uri");
-        List<String> named = ctx.queryParam("named-graph-uri");
-        if (def.size() > 0 || named.size() > 0) {
-            throw new ValidationException(400, ErrorMessage.toJson("RDF datasets not allowed"));
-        }
-    }
-
-    private static @NotNull SparqlResultType getValidAcceptedResultType(HttpServerRequest request) {
-        String accepted = request.getHeader("Accept");
-        if (accepted != null) {
-            // TODO: better support multiple Accept with quality flag
-            accepted = accepted.split(",")[0].trim();
-            accepted = accepted.split(";")[0];
-        }
-
-        SparqlResultType mappedAccepted = SparqlResultType.SPARQL_JSON;
-        if (accepted != null && !accepted.equals("*/*")) {
-            mappedAccepted = ContentTypesMap.get(accepted, SparqlResultType.UNRECOGNIZED);
-        }
-
-        if (mappedAccepted.equals(SparqlResultType.UNRECOGNIZED)) {
-            throw new ValidationException(400, ErrorMessage.toJson("Unsupported response mime type: " + accepted));
-        }
-        return mappedAccepted;
+        return true;
     }
 
     private @NotNull TokenPair makeOrGetValidToken(HttpServerRequest request) {
         String authHeader = request.getHeader("Authorization");
         String token;
-        if(authHeader == null && enableAnonymous) {
+        if (authHeader == null && enableAnonymous) {
             token = identities.newToken(defaultTokenDuration);
         } else {
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 throw new ValidationException(401, ErrorMessage.toJson("Access Denied: no Bearer token provided"));
             }
             String bearer = authHeader.substring("Bearer ".length());
-            if(bearer.indexOf(":")> 0) {
+            if (bearer.indexOf(":") > 0) {
                 try {
                     token = identities.newToken(bearer, defaultTokenDuration);
                 } catch (RuntimeException e) {
@@ -274,18 +345,6 @@ public class SparqlEndpoint extends AbstractVerticle {
         return new TokenPair(token, simpleToken);
     }
 
-    public static String tokenValidMessage(SimpleToken token) {
-
-        try {
-            if (token.isValid()) {
-                return null;
-            }
-            return "invalid token: missing issuer, subject or already expired";
-        } catch (Exception e) {
-            return "invalid token: " + e.getMessage();
-        }
-    }
-
     public static class ValidationException extends RuntimeException {
         private final int code;
 
@@ -299,5 +358,6 @@ public class SparqlEndpoint extends AbstractVerticle {
         }
     }
 
-    record TokenPair(String tokenString, SimpleToken simpleToken){}
+    record TokenPair(String tokenString, SimpleToken simpleToken) {
+    }
 }

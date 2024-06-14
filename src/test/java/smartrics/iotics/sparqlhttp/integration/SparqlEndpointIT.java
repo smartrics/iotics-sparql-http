@@ -87,8 +87,8 @@ public class SparqlEndpointIT {
                     return request.send(sparqlQuery);
                 }).compose(response -> {
                     // Check for HTTP 500 status code
-                    assertThat("should have code 500", response.statusCode(), equalTo(500));
-                    assertThat("should contain invalid query", response.statusMessage(), containsString("error executing the query: query invalid"));
+                    assertThat("should have code 400", response.statusCode(), equalTo(400));
+                    assertThat("should contain invalid query", response.statusMessage(), containsString("query invalid: Parse error"));
                     testContext.completeNow(); // Test passes
                     return Future.succeededFuture();
                 }).onFailure(throwable -> {

@@ -10,7 +10,9 @@ LIMIT 10"""
 encoded_query = urllib.parse.quote(sparql_query)
 
 # Define the URL with the encoded query
-url = f"http://localhost:8080/sparql/local?query={encoded_query}"
+#url = f"http://localhost:8080/sparql/local?query={encoded_query}"
+url = f"http://ec2-54-74-205-200.eu-west-1.compute.amazonaws.com/sparql?query={encoded_query}"
+print(url)
 
 # Define the headers
 headers = {

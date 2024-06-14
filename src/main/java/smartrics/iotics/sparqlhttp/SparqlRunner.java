@@ -43,7 +43,7 @@ public class SparqlRunner implements QueryRunner {
                         .setResultContentType(resultContentType)
                         .build())
                 .build();
-        LOGGER.info("SPARQL query: " + sparqlQueryRequest);
+        LOGGER.debug("SPARQL query: " + sparqlQueryRequest);
         metaAPIStub.sparqlQuery(sparqlQueryRequest, responseObserver);
     }
 

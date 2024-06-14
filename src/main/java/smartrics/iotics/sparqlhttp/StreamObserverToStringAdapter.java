@@ -29,7 +29,7 @@ public class StreamObserverToStringAdapter implements StreamObserver<String> {
             throw new IllegalStateException("unable to terminate query");
         }
         if (err.get() != null) {
-            throw new IllegalStateException("error executing the query", err.get());
+            throw new QueryExecutionException(err.get());
         }
         return b.toString();
     }
