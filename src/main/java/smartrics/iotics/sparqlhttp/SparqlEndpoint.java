@@ -3,6 +3,7 @@ package smartrics.iotics.sparqlhttp;
 import com.iotics.api.MetaAPIGrpc;
 import com.iotics.api.Scope;
 import com.iotics.api.SparqlResultType;
+import io.grpc.stub.StreamObserver;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Launcher;
 import io.vertx.core.MultiMap;
@@ -258,23 +259,33 @@ public class SparqlEndpoint extends AbstractVerticle {
                 ctx.response().headers().set("Content-Type", mime);
             }
             ctx.response().headers().add("Access-Control-Allow-Origin", "*");
-            StreamObserverToStringAdapter outputStream = new StreamObserverToStringAdapter();
+            //StreamObserverToStringAdapter outputStream = new StreamObserverToStringAdapter();
 
             QueryRunner runner = SparqlRunner.SparqlRunnerBuilder.newBuilder()
                     .withScope(scope)
                     .withSparqlResultType(type)
                     .withMetaAPIStub(api)
-                    .withOutputStream(outputStream)
+                    .withOutputStream(new StreamObserver<String>() {
+
+                        @Override
+                        public void onNext(String s) {
+                            ctx.response().setStatusCode(200);
+                            ctx.response().send(s);
+                        }
+
+                        @Override
+                        public void onError(Throwable e) {
+                            sendError(400, ErrorMessage.toJson(e.getMessage()), ctx.response());
+                        }
+
+                        @Override
+                        public void onCompleted() {
+
+                        }
+                    })
                     .withAgentIdentity(identities.agentIdentity())
                     .build();
             runner.run(query);
-
-            String string = outputStream.getString();
-            ctx.response().setStatusCode(200);
-            ctx.response().send(string);
-        } catch (QueryExecutionException e) {
-            String cause = e.getCause().getMessage();
-            sendError(400, ErrorMessage.toJson(cause), ctx.response());
         } catch (Exception e) {
             LOGGER.warn("exception when handling request", e);
             String message = e.getMessage();
