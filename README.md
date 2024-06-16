@@ -59,11 +59,14 @@ Token duration follows the ISO 8601 spec as described [here](https://docs.oracle
 https://hub.docker.com/repository/docker/smartrics/iotics-sparql-http/general
 
 ```shell
-docker build -t smartrics/iotics-sparql-http:0.1 .
+docker build -t smartrics/iotics-sparql-http:<tag> .
 ```
 
+To run, make sure you create a directory locally where logs can be stored. 
+For example, `/path/to/host/logs`. 
+
 ```shell
-docker run -d -p 8080:8080 --env-file .env iotics-sparql-http:1.0
+docker run -d -p 8080:8080 --env-file .env.demo.dev -v /path/to/host/logs:/app/logs smartrics/iotics-sparql-http:<tag>
 ```
 
 ## Use

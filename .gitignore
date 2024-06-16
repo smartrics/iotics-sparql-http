@@ -6,6 +6,7 @@ target/
 /dependency-reduced-pom.xml
 /iotics-sparql-http.iml
 venv/
+logs/
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
