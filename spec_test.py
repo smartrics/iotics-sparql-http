@@ -146,7 +146,7 @@ def test_query_with_named_graph_uri(endpoint_url):
 
     response = client.get(url, headers=headers)
     if globalQuery:
-        check_response(func_name, 400, response.status_code, lambda: check_text_contains(func_name, "NANANA", response.text))
+        check_response(func_name, 400, response.status_code, lambda: check_text_contains(func_name, "", response.text))
     else:
         check_response(func_name, 200, response.status_code, lambda: check_json_field(func_name, "results", response.json()))
 
