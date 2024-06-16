@@ -21,14 +21,12 @@ public class IOTICSConnection {
         this.builder = builder;
     }
 
-    // This is meant to be called multiple times, to recreate a connection to IOTICS
-    public MetaAPIGrpc.MetaAPIStub newMetaAPIStub(String token) {
+    public ManagedChannel newChannel(String token) {
         TokenInjector tokenInjector = new TokenInjector(token);
         List<ClientInterceptor> interceptorList = new ArrayList<>();
         interceptorList.add(tokenInjector);
         builder.intercept(interceptorList);
-        ManagedChannel channel = builder.build();
-        return MetaAPIGrpc.newStub(channel);
+        return builder.build();
     }
 
     public record TokenInjector(String token) implements ClientInterceptor {

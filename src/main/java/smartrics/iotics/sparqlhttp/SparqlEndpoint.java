@@ -3,6 +3,7 @@ package smartrics.iotics.sparqlhttp;
 import com.iotics.api.MetaAPIGrpc;
 import com.iotics.api.Scope;
 import com.iotics.api.SparqlResultType;
+import io.grpc.ManagedChannel;
 import io.grpc.stub.StreamObserver;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Launcher;
@@ -249,10 +250,12 @@ public class SparqlEndpoint extends AbstractVerticle {
     }
 
     private void handle(Scope scope, RoutingContext ctx, String token, String query) {
+        ManagedChannel channel = null;
         try {
             String host = configManager.getValue(ConfigManager.ConfigKey.HOST_DNS);
             IOTICSConnection connection = new IOTICSConnection(host);
-            MetaAPIGrpc.MetaAPIStub api = connection.newMetaAPIStub(token);
+            channel = connection.newChannel(token);
+            MetaAPIGrpc.MetaAPIStub api = MetaAPIGrpc.newStub(channel);
             SparqlResultType type = ctx.get("acceptedResponseType");
             String mime = mimeFor(type);
             if (mime != null) {
@@ -293,6 +296,10 @@ public class SparqlEndpoint extends AbstractVerticle {
                 message = message + ": " + e.getCause().getMessage();
             }
             sendError(500, ErrorMessage.toJson(message), ctx.response());
+        } finally {
+            if(channel != null) {
+                channel.shutdown();
+            }
         }
     }
 
