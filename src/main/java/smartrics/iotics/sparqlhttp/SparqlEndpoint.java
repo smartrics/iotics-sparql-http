@@ -15,6 +15,7 @@ import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
+import io.vertx.ext.web.handler.StaticHandler;
 import org.apache.logging.log4j.util.Strings;
 import org.jetbrains.annotations.NotNull;
 
@@ -136,6 +137,7 @@ public class SparqlEndpoint extends AbstractVerticle {
         router.route().handler(this::logRequestAndResponse);
 
         // Handle /health route separately
+        router.get("/*").handler(StaticHandler.create("webroot"));
         router.get("/health").handler(this::handleHealth);
 
         // Apply the BodyHandler and validateRequest handler to the /sparql routes
