@@ -66,7 +66,7 @@ To run, make sure you create a directory locally where logs can be stored.
 For example, `/path/to/host/logs`. 
 
 ```shell
-docker run -d -p 8080:8080 --env-file .env.demo.dev -v /path/to/host/logs:/app/logs smartrics/iotics-sparql-http:<tag>
+docker run -d -p 8080:8080 --env-file .env -v /path/to/host/logs:/app/logs smartrics/iotics-sparql-http:<tag>
 ```
 
 ## Use
