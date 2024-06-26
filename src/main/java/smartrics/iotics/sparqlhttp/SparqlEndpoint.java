@@ -8,10 +8,12 @@ import io.grpc.stub.StreamObserver;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Launcher;
 import io.vertx.core.MultiMap;
+import io.vertx.core.http.HttpServerOptions;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
+import io.vertx.core.net.PemKeyCertOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
@@ -173,8 +175,36 @@ public class SparqlEndpoint extends AbstractVerticle {
         String port = Optional.ofNullable(System.getenv("PORT")).orElse("8080");
         Router router = createRouter();
         LOGGER.info("Starting on port " + port);
-        vertx.createHttpServer().requestHandler(router).listen(Integer.parseInt(port));
-    }
+        vertx.createHttpServer()
+                .requestHandler(router)
+                .listen(Integer.parseInt(port), http -> {
+                    if (http.succeeded()) {
+                        LOGGER.info("HTTP server started on port " + port);
+                    } else {
+                        LOGGER.error("HTTP server failed to start", http.cause());
+                    }
+                });
+
+        // HTTPS server
+        String httpsPort = Optional.ofNullable(System.getenv("SECURE_PORT")).orElse("8443");
+        HttpServerOptions options = new HttpServerOptions()
+                .setSsl(true)
+                .setKeyCertOptions(new PemKeyCertOptions()
+                        .setCertPath("./ssl/server.crt")
+                        .setKeyPath("./ssl/server.key")
+                );
+
+        LOGGER.info("Starting on secure port " + httpsPort);
+        vertx.createHttpServer(options)
+                .requestHandler(router)
+                .listen(Integer.parseInt(httpsPort), http -> {
+                    if (http.succeeded()) {
+                        LOGGER.info("HTTPS server started on port " + httpsPort);
+                    } else {
+                        LOGGER.error("HTTPS server failed to start", http.cause());
+                        http.cause().printStackTrace();
+                    }
+                });    }
 
     private void handleHealth(RoutingContext ctx) {
         ctx.response().setStatusCode(200);

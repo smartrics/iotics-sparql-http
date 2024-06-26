@@ -55,6 +55,7 @@ FROM ubuntu:${UBUNTU_VERSION} as app-server
 ENV JAVA_HOME=/opt/java-minimal
 ENV PATH="$PATH:$JAVA_HOME/bin"
 ENV httpPort=8080
+ENV httpsPort=8443
 ENV httpHost=0.0.0.0
 
 WORKDIR /app
@@ -73,6 +74,8 @@ COPY --from=builder /build/target/iotics-sparql-http-*.jar ./app.jar
 COPY --from=builder /build/target/lib ./lib
 # Copy the built .so file from the Go build stage
 COPY --from=gobuilder /go/src/ffi/lib/lib-iotics-id-sdk.so ./lib/
+# Copy the certs
+COPY ./ssl ./ssl
 # Copy the entrypoint script
 COPY ./docker-entrypoint.sh ./
 

@@ -4,6 +4,19 @@ A connector proxying sparql over HTTP to the gRPC federated graph of an IOTICS n
 
 ## Build and Test
 
+### Procure/Create SSL certificates
+
+If you have certificates signed by a CA, copy the key and certificate files in `./ssl`. 
+Or else you can generate self-signed certificates as following:
+
+```shell
+mkdir ./ssl
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout ./ssl/server.key -out ./ssl/server.crt
+openssl pkcs12 -export -in ./ssl/server.crt -inkey ./ssl/server.key -out ./ssl/keystore.p12 -name selfsigned
+```
+
+### Build the application
+
 Build with
 
 ```commandline
@@ -19,16 +32,17 @@ java -jar iotics-sparql-http-<version>.jar
 The following variables are read from the environment or via system properties arguments.
 Environment values will always be preferred if not null.
 
-| Property   | default | optional | description                                                                                                                                   | 
-|------------|---------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------|
-| HOST_DNS   | n/a     | no       | the DNS of the host where to forward gRPC requests to. If omitted, the host will be taken via the `X-IOTICS-HOST`                             |
-| PORT       | 8080    | yes      | port where the porxy http listener is deployed                                                                                                |
-| AGENT_SEED | n/a     | no       | port where the porxy http listener is deployed                                                                                                |
+| Property    | default | optional | description                                                                                                       | 
+|-------------|---------|----------|-------------------------------------------------------------------------------------------------------------------|
+| HOST_DNS    | n/a     | no       | the DNS of the host where to forward gRPC requests to. If omitted, the host will be taken via the `X-IOTICS-HOST` |
+| PORT        | 8080    | yes      | port where the porxy http listener is deployed                                                                    |
+| SECURE_PORT | 8443    | yes      | port where the porxy https listener is deployed                                                                   |
+| AGENT_SEED  | n/a     | no       | agent seed                                                                                                        |
 
 Example:
 
 ```
-java -DHOST_DNS=myhost.iotics.space -DPORT=80 -jar iotics-sparql-http-<version>.jar 
+java -DHOST_DNS=myhost.iotics.space -DPORT=80 -DSECURE_PORT=443 -jar iotics-sparql-http-<version>.jar 
 ```
 
 
@@ -38,6 +52,7 @@ To run the integration tests(manually, from within the IDE), you need to create 
 
 ```properties
 PORT=<the port where the HTTP endpoint is listening>
+SECURE_PORT=<the port where the HTTPS endpoint is listening>
 HOST_DNS=<the host DNS where to forward the gRPC requests>
 RESOLVER_URL=<the resolver used to manage identities (find it at https://{HOST_DNS}/index.json)>
 AGENT_SEED=<a valid identity seed>
@@ -66,7 +81,7 @@ To run, make sure you create a directory locally where logs can be stored.
 For example, `/path/to/host/logs`. 
 
 ```shell
-docker run -d -p 8080:8080 --env-file .env -v /path/to/host/logs:/app/logs smartrics/iotics-sparql-http:<tag>
+docker run -d -p 8080:8080 -p 8443:8443 --env-file .env -v /path/to/host/logs:/app/logs smartrics/iotics-sparql-http:<tag>
 ```
 
 ## Use

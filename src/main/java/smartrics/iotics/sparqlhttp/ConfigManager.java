@@ -9,6 +9,7 @@ public class ConfigManager {
     private final Map<ConfigKey, String> configValues;
 
     private static final String DEFAULT_PORT = "8080";
+    private static final String DEFAULT_SECURE_PORT = "8443";
     private static final String DEFAULT_TOKEN_DURATION = "3600";
     private static final String DEFAULT_ENABLE_ANON = "false";
 
@@ -20,6 +21,7 @@ public class ConfigManager {
         USER_KEY("USER_KEY"),
         ENABLE_ANON("ENABLE_ANON", DEFAULT_ENABLE_ANON),
         PORT("PORT", DEFAULT_PORT),
+        SECURE_PORT("SECURE_PORT", DEFAULT_SECURE_PORT),
         TOKEN_DURATION("TOKEN_DURATION", DEFAULT_TOKEN_DURATION);
 
         private final String key;
