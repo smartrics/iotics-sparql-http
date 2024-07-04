@@ -19,8 +19,13 @@ public class ContentTypesMap {
 
     static {
         resultFormat.put("application/sparql-results+xml", SPARQL_XML);
+        resultFormat.put("application/xml", SPARQL_XML);
+        resultFormat.put("text/xml", SPARQL_XML);
         resultFormat.put("application/sparql-results+json", SparqlResultType.SPARQL_JSON);
+        resultFormat.put("text/json", SparqlResultType.SPARQL_JSON);
+        resultFormat.put("application/json", SparqlResultType.SPARQL_JSON);
         resultFormat.put("text/csv", SparqlResultType.SPARQL_CSV);
+        resultFormat.put("application/csv", SparqlResultType.SPARQL_CSV);
         resultFormat.put("text/tab-separated-values", SparqlResultType.UNRECOGNIZED);
 
         resultFormat.put("application/rdf+xml", SparqlResultType.RDF_XML);
@@ -31,7 +36,6 @@ public class ContentTypesMap {
         resultFormat.put("application/ld+json", SparqlResultType.UNRECOGNIZED);
         resultFormat.put("application/rdf+json", SparqlResultType.UNRECOGNIZED);
         resultFormat.put("application/x-binary-rdf", SparqlResultType.UNRECOGNIZED);
-
     }
 
     public static String mimeFor(SparqlResultType e) {

@@ -8,6 +8,7 @@ target/
 venv/
 logs/
 ssl/
+**/*.log
 
 ### IntelliJ IDEA ###
 .idea/modules.xml

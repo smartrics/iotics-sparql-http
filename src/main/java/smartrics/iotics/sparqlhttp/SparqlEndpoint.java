@@ -83,7 +83,7 @@ public class SparqlEndpoint extends AbstractVerticle {
             // Clients must set the content type header of the HTTP request to application/sparql-query
             // spec par 2.1.3
             String ct = request.getHeader("Content-Type");
-            if(Strings.isBlank(ct)) {
+            if (Strings.isBlank(ct)) {
                 throw new ValidationException(400, ErrorMessage.toJson("missing content type"));
             }
             String mime = ct.split(";")[0].trim();
@@ -103,22 +103,24 @@ public class SparqlEndpoint extends AbstractVerticle {
     }
 
     private static @NotNull SparqlResultType getValidAcceptedResultType(HttpServerRequest request) {
-        String accepted = request.getHeader("Accept");
-        if (accepted != null) {
-            // TODO: better support multiple Accept with quality flag
-            accepted = accepted.split(",")[0].trim();
-            accepted = accepted.split(";")[0];
+        String acceptHeader = request.getHeader("Accept");
+        String[] mediaRanges = acceptHeader.split(",");
+
+        List<MediaType> mediaTypes = Arrays.stream(mediaRanges)
+                .map(String::trim)
+                .map(MediaType::new)
+                .sorted(Comparator.comparingDouble(MediaType::getQuality).reversed())
+                .toList();
+
+        for (MediaType mediaType : mediaTypes) {
+            String type = mediaType.getType();
+            Optional<SparqlResultType> fileFormat = ContentTypesMap.get(type);
+            if (fileFormat.isPresent()) {
+                return fileFormat.get();
+            }
         }
 
-        SparqlResultType mappedAccepted = SparqlResultType.SPARQL_JSON;
-        if (accepted != null && !accepted.equals("*/*")) {
-            mappedAccepted = ContentTypesMap.get(accepted, SparqlResultType.UNRECOGNIZED);
-        }
-
-        if (mappedAccepted.equals(SparqlResultType.UNRECOGNIZED)) {
-            throw new ValidationException(400, ErrorMessage.toJson("Unsupported response mime type: " + accepted));
-        }
-        return mappedAccepted;
+        throw new ValidationException(400, ErrorMessage.toJson("Unsupported response mime type: " + acceptHeader));
     }
 
     public static String tokenValidMessage(SimpleToken token) {
@@ -204,7 +206,8 @@ public class SparqlEndpoint extends AbstractVerticle {
                         LOGGER.error("HTTPS server failed to start", http.cause());
                         http.cause().printStackTrace();
                     }
-                });    }
+                });
+    }
 
     private void handleHealth(RoutingContext ctx) {
         ctx.response().setStatusCode(200);
@@ -300,7 +303,7 @@ public class SparqlEndpoint extends AbstractVerticle {
                     .withScope(scope)
                     .withSparqlResultType(type)
                     .withMetaAPIStub(api)
-                    .withOutputStream(new StreamObserver<String>() {
+                    .withOutputStream(new StreamObserver<>() {
 
                         @Override
                         public void onNext(String s) {
@@ -329,7 +332,7 @@ public class SparqlEndpoint extends AbstractVerticle {
             }
             sendError(500, ErrorMessage.toJson(message), ctx.response());
         } finally {
-            if(channel != null) {
+            if (channel != null) {
                 channel.shutdown();
             }
         }
